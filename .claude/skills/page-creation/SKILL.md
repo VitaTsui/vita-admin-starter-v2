@@ -661,6 +661,51 @@ class BadStore {
 }
 ```
 
+## 页签缓存与 store 实例化（单例 vs 每挂载一份）
+
+多页签系统里路由 meta 的 `noCache: false` 表示页面组件被**缓存复用**（keep-alive）：同一路由的多个页签（不同路由参数，如 /library/table/:id 的两张条目表）会**同时存活**。这直接决定 store 的实例化方式：
+
+### 判定规则
+
+- **`noCache: true`（不缓存）或全局唯一页面**（设置页、单例列表页）→ 模块单例：`export default new XStore();`
+- **`noCache: false` 且路由带动态参数**（同路由可多页签并存）→ **禁止单例**。单例会被多个缓存页签共写：后打开的页签把前一个页签的数据/元数据整个覆盖（表现为切页签后数据串了、列错位、显示不对）。
+
+### 每挂载一份的写法（参考 DataViewSearchStore 模式）
+
+```ts
+// XStore.ts —— 导出类，不导出实例
+class EntryStore extends ListPanelStore<EntrySearchData, EntryData> { ... }
+export default EntryStore;
+```
+
+```tsx
+// index.tsx —— 挂载时实例化（mobx-react-lite v4 已移除 useLocalStore，用 useState 惰性初始化）
+const Entry: React.FC = observer(() => {
+  const [entryStore] = useState(() => new EntryStore());
+  const { dataSource, getDataSource, ... } = entryStore;
+  ...
+});
+```
+
+### 配套纪律（缓存页签必守）
+
+1. **子组件不得 import 该 store 单例**——共享数据一律走 props 注入（如表单弹窗需要字段定义，由页面把 `fields` 传下去），否则子组件仍指向旧实例/别的页签。
+2. **请求前置空旧列表**：`getDataSource` 开头 `this._dataSource = []`，避免新数据返回前展示过期行。
+3. **路由参数变化先清元数据**：加载新实体的元信息（字段定义/表头）时先把旧值置空，防止旧列集渗透进新首帧（会引发固定列偏移错算与 React 跨异构列打补丁的 removeChild 白屏）。
+4. **异构列集切换强制重挂载**：同一路由组件在不同列集间切换时给 `Panel.List` 传 `key={实体id}`（hsu-ui ListPanel 的 tableInstanceKey 机制）。
+5. 表头排序如仅需当前页本地排序，覆写 `onOrderChange` 本地排，不重新请求（DataViewSearchStore 的 `_sortLocal` 模式）。
+
+### 反例
+
+```ts
+// ❌ noCache:false 的动态参数路由用单例 —— 多页签共写，必串数据
+export default new EntryStore();
+
+// ❌ 子组件绕过 props 直接 import 单例
+import EntryStore from "../EntryStore";
+const { fields } = EntryStore;
+```
+
 ## tsx 消费 store：解构 + getter，不要回调
 
 **数据的所有权在 store；tsx 只订阅读取，不负责把数据塞回去。** store 的 fetch 方法不应接收「把结果回传给调用方」的回调；要暴露的值都走私有字段 + getter，tsx 用 `observer` 订阅即可。
