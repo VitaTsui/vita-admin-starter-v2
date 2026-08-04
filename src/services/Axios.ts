@@ -282,8 +282,28 @@ export interface ResType<T = unknown> {
   code: number;
   msg?: string;
 }
-const response = <T>(res: AxiosResponse<ResType<T>>): ResType<T> => {
-  const data = res.data;
+const response = async <T>(res: AxiosResponse<ResType<T>>): Promise<ResType<T>> => {
+  let data = res.data;
+
+  if (Typeof(data) === "blob" || Typeof(data) === "arraybuffer") {
+    // With a forced responseType, a 200 + JSON business error also arrives as a blob:
+    // detect by content-type and unwrap the envelope so it goes through normal error
+    // handling instead of being treated as a successfully downloaded file
+    const ct = String(
+      (res.headers as Record<string, unknown>)?.["content-type"] ?? ""
+    );
+    if (ct.includes("application/json")) {
+      try {
+        const text =
+          Typeof(data) === "blob"
+            ? await (data as unknown as Blob).text()
+            : new TextDecoder().decode(data as unknown as ArrayBuffer);
+        data = JSON.parse(text);
+      } catch {
+        // Parsing failed: keep treating it as a file
+      }
+    }
+  }
 
   if (Typeof(data) === "blob" || Typeof(data) === "arraybuffer") {
     const filename = getFileNameFromHeader(
