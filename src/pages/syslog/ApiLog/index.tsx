@@ -3,7 +3,13 @@ import { observer } from "mobx-react-lite";
 import dayjs from "dayjs";
 import { getDateRange } from "hsu-utils";
 
-import { ColumnsType, FormItemProps, Panel, Operate, ChakraButtonProps } from "@hsu-react/ui";
+import {
+  ColumnsType,
+  FormItemProps,
+  Panel,
+  Operate,
+  ChakraButtonProps,
+} from "@hsu-react/ui";
 
 import ApiLogStore from "./ApiLogStore";
 import ApiLogForm from "./ApiLogForm";
@@ -13,6 +19,7 @@ import ChatModalStore from "../_components/ChatModal/ChatModalStore";
 import styles from "./index.module.scss";
 import { DeleteOutlined, RobotOutlined } from "@ant-design/icons";
 import OptionsStore, { Options } from "@/stores/OptionsStore";
+import useDataViewCache from "@/hooks/useDataViewCache";
 import { message } from "antd";
 
 const ApiLog: React.FC = observer(() => {
@@ -59,25 +66,29 @@ const ApiLog: React.FC = observer(() => {
     getLargeModelApiKeyList();
   }, [getLargeModelApiKeyList]);
 
-  const searchItems: FormItemProps[] = [
-    { type: "INPUT", name: "username", label: "用户名" },
-    { type: "INPUT", name: "nm", label: "接口名称" },
-    { type: "INPUT", name: "uri", label: "URI" },
-    { type: "INPUT", name: "ip", label: "IP" },
-    {
-      type: "RANGEPICKER",
-      name: "crtTm",
-      label: "创建时间",
-      initialValue: getDateRange({
-        amount: 1,
-        type: "past",
-      }),
-      componentProps: {
-        maxDate: dayjs(new Date()),
-        allowClear: false,
+  // 交给 useDataViewCache 做「搜索项显隐」缓存，依赖必须是稳定引用
+  const initialSearchItems = useMemo<FormItemProps[]>(
+    () => [
+      { type: "INPUT", name: "username", label: "用户名" },
+      { type: "INPUT", name: "nm", label: "接口名称" },
+      { type: "INPUT", name: "uri", label: "URI" },
+      { type: "INPUT", name: "ip", label: "IP" },
+      {
+        type: "RANGEPICKER",
+        name: "crtTm",
+        label: "创建时间",
+        initialValue: getDateRange({
+          amount: 1,
+          type: "past",
+        }),
+        componentProps: {
+          maxDate: dayjs(new Date()),
+          allowClear: false,
+        },
       },
-    },
-  ];
+    ],
+    [],
+  );
 
   const handleOpenChatModal = () => {
     if (!selectedRowKeys || selectedRowKeys.length === 0) {
@@ -136,85 +147,110 @@ const ApiLog: React.FC = observer(() => {
     },
   ];
 
-  const columns: ColumnsType = [
-    { title: "用户名", dataIndex: "username", width: 150, fixedWidth: true },
-    { title: "接口名称", dataIndex: "nm", width: 250 },
-    { title: "URI", dataIndex: "uri", width: 250 },
-    {
-      title: "IP",
-      dataIndex: "ip",
-      width: 120,
-      align: "center",
-      fixedWidth: true,
-    },
-    {
-      title: "状态",
-      dataIndex: "statusDsr",
-      orderKey: "status",
-      align: "center",
-      width: 80,
-      fixedWidth: true,
-    },
-    {
-      title: "方法",
-      dataIndex: "method",
-      align: "center",
-      width: 80,
-      fixedWidth: true,
-    },
-    {
-      title: "运行时长(ms)",
-      dataIndex: "spendTime",
-      align: "center",
-      width: 120,
-    },
-    {
-      title: "创建时间",
-      dataIndex: "crtTm",
-      align: "center",
-      width: 160,
-      fixedWidth: true,
-    },
-    {
-      title: "操作",
-      width: 80,
-      ellipsis: false,
-      align: "center",
-      fixed: "right",
-      fixedWidth: true,
-      render: (record) => (
-        <Operate
-          menu={[
-            {
-              title: "详情",
-              onClick: () => {
-                setId(record.id);
-                setOpen(true);
+  const initialColumns = useMemo<ColumnsType>(
+    () => [
+      { title: "用户名", dataIndex: "username", width: 150, fixedWidth: true },
+      { title: "接口名称", dataIndex: "nm", width: 250 },
+      { title: "URI", dataIndex: "uri", width: 250 },
+      {
+        title: "IP",
+        dataIndex: "ip",
+        width: 120,
+        align: "center",
+        fixedWidth: true,
+      },
+      {
+        title: "状态",
+        dataIndex: "statusDsr",
+        orderKey: "status",
+        align: "center",
+        width: 80,
+        fixedWidth: true,
+      },
+      {
+        title: "方法",
+        dataIndex: "method",
+        align: "center",
+        width: 80,
+        fixedWidth: true,
+      },
+      {
+        title: "运行时长(ms)",
+        dataIndex: "spendTime",
+        align: "center",
+        width: 120,
+      },
+      {
+        title: "创建时间",
+        dataIndex: "crtTm",
+        align: "center",
+        width: 160,
+        fixedWidth: true,
+      },
+      {
+        title: "操作",
+        width: 80,
+        ellipsis: false,
+        align: "center",
+        fixed: "right",
+        fixedWidth: true,
+        render: (record) => (
+          <Operate
+            menu={[
+              {
+                title: "详情",
+                onClick: () => {
+                  setId(record.id);
+                  setOpen(true);
+                },
+                hasPermi: ["sys:log:info"],
               },
-              hasPermi: ["sys:log:info"],
-            },
-          ]}
-        />
-      ),
-    },
-  ];
+            ]}
+          />
+        ),
+      },
+    ],
+    [],
+  );
+
+  // 列多的列表页接这套：搜索项显隐 + 列显隐/宽度/顺序，按 pathname 落 wsCache。
+  // 动态参数路由（/xxx/:id）天然按 id 各存一份，多页签互不干扰。
+  const {
+    searchItems,
+    columns,
+    handleSearchFilterChange,
+    handleColumnSelectionChange,
+  } = useDataViewCache({
+    initialSearchItems,
+    initialColumns,
+  });
 
   return (
     <>
       <Panel.List
         className={styles.ApiLog}
+        searchMode="WithFilter"
         searchProps={{
           searchItems,
           onSearch: setSearchData,
           onReset: initSearchData,
           beforeButtonGroup,
           hasPermi: ["sys:log:query"],
+          // 开筛选下拉，用户自选展开哪些搜索项；变更回写缓存
+          setFilter: true,
+          onFilterChange: handleSearchFilterChange,
         }}
         tableProps={{
           columns,
           dataSource,
           rowKey: "id",
           loading: isLoading,
+          // 列管理：显隐 / 宽度 / 顺序，变更回写缓存
+          tableTools: {
+            columnMgt: {
+              onSelectionChange: handleColumnSelectionChange,
+            },
+          },
           rowSelection: {
             preserveSelectedRowKeys: true,
             selectedRowKeys,
