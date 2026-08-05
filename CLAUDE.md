@@ -34,7 +34,16 @@
 ## 布局与通用 hooks
 
 - 顶栏是 `src/layout/Header/`，`App.tsx` 只剩壳、Sider、Content 和改密弹窗。顶栏要用页面侧的东西（`LoginStore`、懒加载的 `PwdChange`）时**倒过来注入**——`Header` 只收 `menu: AccountAction[]`，不 import `@/pages/…`。理由与代价见 `page-creation` skill 的「页面是懒加载的」一节。
-- `@/hooks/useCollapsed(key, defaultCollapsed)`：面板折叠态 ＋ localStorage 记忆，默认值是显式参数。凡是「这块能收起来、下次进来还记得」的侧板/卡片都用它，别各写一份。
+
+## 纯页面内状态不要持久化
+
+面板折叠、视图切换（卡片/列表）、展开收起这类**只影响当前这一眼怎么看**的状态，用 `useState` 就够，**不要写进 localStorage**：
+
+- 页签是 KeepAlive 缓存的，切走再回来状态本来就还在，持久化并不解决任何实际问题；
+- localStorage 的 key 是**全局**的，而这些状态几乎都是「针对当前这个对象」的——真实案例里某个折叠态被所有对象共享，换一个对象还顶着上一个的折叠状态；
+- 真正该跨会话记住的（登录态、主题、语言、每页条数）走 `wsCache`，那是另一回事。
+
+判据：**这个状态换一个对象/换一个页签还成立吗？**不成立就是页面内状态。
 
 ## 技术栈约定
 
