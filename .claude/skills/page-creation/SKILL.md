@@ -746,6 +746,24 @@ const PwdChange = lazy(() => import("./pages/PwdChange"));
 )}
 ```
 
+#### 推论：layout 组件要用 pages 里的东西时，倒过来注入，别 import
+
+顶栏是 `layout/Header/`，`App.tsx` 只剩壳、Sider、Content、改密弹窗。抽的时候有个绕不开的点：用户弹层里的「修改密码 / 退出登录」要用 `LoginStore`（在 `pages/Login/` 下）和懒加载的 `PwdChange` 页面，而 **`layout/` 不允许反向 import `@/pages/…`**（见反例清单）。
+
+解法是倒过来——**`Header` 不认识这两样东西，只收一个 `menu: AccountAction[]`**；`quit` / `pwdOpen` / `<PwdChange>` 全留在 `App.tsx`：
+
+```tsx
+// layout/Header/index.tsx —— 只描述形状，不碰来源
+export interface AccountAction {
+  title: string; icon: string; onclick: () => void;
+}
+
+// App.tsx —— 组装动作，并继续持有懒加载的 PwdChange
+<Header router={router} collapsed={collapsed} menu={menu} … />
+```
+
+**这一带最容易被「顺手整理」整出问题**：改密弹窗看着就该跟用户菜单待在一起，一旦有人把 `PwdChange` 搬进 `Header`，同时踩两条——反向依赖成立，且只要顺手把 `lazy()` 写成静态 import，规则一里那几个库就又回到首屏了。**`layout/` 下出现 `@/pages/` 的 import 一律先当违规看**，需要页面侧的能力就走 props 注入。
+
 ### 规则二：入口图里也别静态 import 重组件
 
 同理，`Panel` → `Search` → `FormItem` → 全部字段渲染器，`Chart` → echarts。`RouterService` 只在「外链菜单」这条极少走到的分支用 `Panel.Iframe`，为此专门包了一层 `router/_components/IframePanel` 懒加载它。**加/删这层包装的实测差异：85 个 script / 965 KB(gzip) ↔ 126 个 / 2913 KB。**
@@ -886,6 +904,7 @@ public loadRoles = (fn?: (list: RoleItem[]) => void) => {
 1. **同一段渲染逻辑在 ≥2 个页面出现**——哪怕只有类型名不同。写新页面前先搜有没有同构实现：真实案例里「规则页/基础设定/大纲」三页的文档树节点与「新建子页」弹窗曾逐字重复三份；书封网格更隐蔽——一处已有组件、另一处内联复制了一份。
 2. **路由页 `index.tsx` 里内联了 `<Modal>` / `<Form.Modal>`**——弹窗一律独立成目录。
 3. **该 UI 块自带接口调用**——见下条，优先级最高。
+4. **同一个 `index.tsx` 里出现 ≥2 套彼此独立的 `columns`，或 ≥2 个互斥的阶段/视图分支**——拆 `_contComps/`，见「内容区拆分」一节。
 
 #### 抽取要抽到底：只抽零件不抽壳，等于没抽
 
@@ -898,6 +917,26 @@ public loadRoles = (fn?: (list: RoleItem[]) => void) => {
 - 各页只剩 20 余行：建 store、传配置
 
 **共享组件的落点要看消费者在哪。**`DocTreePage` 没有放 `src/components/`，因为三个消费者都在 `work/` 下、且它要用 `work/_components/ProseEditor`——放全局层会变成"共享组件反向 import 页面私有目录"，把一个违规换成另一个违规。
+
+### 内容区拆分（`_contComps/`）：按职责切，不按行数切
+
+`_components/` 装的是「可复用的零件」，`_contComps/` 装的是「这一页内容区的一大块」——它不打算被别人复用，只是这一页里一个自成职责的区域。
+
+**该拆的信号**（对应上面硬条件第 4 条）：
+
+- 一个 `index.tsx` 里有 **≥2 套彼此独立的 `columns`**
+- 有 **≥2 个互斥的视图/阶段分支**（「列表 ↔ 详情」「卡片视图 ↔ 表格视图」这类）
+- 某个区域**自带只服务于它的局部 state**（例如上传区的几个输入框，只在这次上传用）
+
+三条纪律：
+
+1. **局部 state 跟着区域走。**判据同「弹窗 Store 与页面 Store 的分工」：这份状态在这个区域之外还有人要用吗？没有就跟着走，页面不必再感知。
+2. **搬走 state 时要一并搬走它的复位逻辑。**真实案例：某个「标题草稿」原本靠页面 `useEffect` 在切换目标时 `setDraft(undefined)` 复位；搬进子组件后没有这一步，会把上一个目标的输入串到新目标。解法是调用侧给 `key={当前目标 id}` 让它重挂载。**凡是把本地 state 下沉到子组件，先问一句「原来是谁在什么时候把它清掉的」。**
+3. **scss 跟着组件走，媒体查询也要跟着走。**CSS Module 的类名带 hash，把 `.xxx` 搬进子组件后，留在页面 scss 里的 `@media { .xxx { display:none } }` 会失配、**静默失效**（不报错、只是不生效）。
+
+**纯派生逻辑走 `_utils/`，不必包成组件。**「从字段定义 computed 出搜索项与列」这类没有 state / effect 的代码，导出成 `buildSearchItems` / `buildColumns` 之类的纯函数放 `_utils/`，页面只留 `useMemo` 缓存。判据：这段代码有没有自己的 state / effect？没有就是纯派生。
+
+**别为了凑行数把 `columns` 搬进 `_utils/`。**列定义里的 `render` 通常闭包引用了页面的 `setXxx`，硬搬出去要逐个改成参数注入，读一列渲染还要跳两个文件——那是负收益。要么连同 `<Table>` 一起拆成 `_contComps/XxxTable`（行操作走 `onEdit` / `onRemove` 这类具名 props），要么就留在页面里。
 
 #### 审计时别把已合规的弹窗当成违规
 
@@ -1014,6 +1053,21 @@ grep -rn "\.addGroup(\|\.editGroup(" src/pages/ | grep -v XxxStore.ts
 **列表里必须用触发器模式**：`map()` 内部无法为每一行单独 `useState`，受控写法只能把「当前待确认的是哪一行」连同文案提到循环外，触发点和弹窗被拆到两个作用域，同页再多一种确认动作就再加一份 state。
 
 仍用受控（传 `open`）的**唯一场景**：触发点不是元素而是配置对象，例如 Dropdown 的 `menu.items`、`Operate` 的操作项——此时无处可包，只能自持 `open` 并在外层渲染 `SecondConf`。
+
+**自己写的触发器组件，`onClick` 必须收下事件对象再往下传。**`SecondConf` 是用 `cloneElement` 把自己的 handler 注到子元素上的，子元素若是自定义组件，那个 handler 就落到它的 `onClick` prop 上：
+
+```tsx
+// ❌ 签名写成无参：SecondConf 注进来的 handler 拿到 undefined，
+//    在它内部的 e.stopPropagation() 处直接抛错，二次确认永远弹不出来
+onClick?: () => void;
+<span onClick={(e) => { e.stopPropagation(); onClick?.(); }}>
+
+// ✅
+onClick?: React.MouseEventHandler<HTMLSpanElement>;
+<span onClick={(e) => { e.stopPropagation(); onClick?.(e); }}>
+```
+
+这条踩过一次：`tsc` 放行（`() => void` 可以赋到 handler 位置），页面看起来也正常，只有真去点删除才发现整条链断了。**凡是要被 `SecondConf` 包住的自定义触发器，写完必须在浏览器里点一次确认弹窗。**
 
 不要在项目内再包一层自己的确认组件。曾经有过一个本地 `ConfirmAction`，正是绕开了 CLAUDE.md「组件能力不满足需求时改动回 hsu-ui 仓库发版」；触发器模式后来并进了 `SecondConf` 本体，本地组件随即删除。
 
