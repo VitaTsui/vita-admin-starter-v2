@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useCallback } from "react";
+import React, { useEffect, useMemo, useState, useCallback, useDeferredValue } from "react";
 
 import RouterStore from "./RouterService";
 import { observer } from "mobx-react-lite";
@@ -14,6 +14,12 @@ import { get, post, del, put } from "@/services/Axios";
 
 const Routes: React.FC = observer(() => {
   const { router, permissions } = RouterStore;
+  // 菜单拉回来后 RouterService 会整体换掉路由表，而页面组件是懒加载的。
+  // observer 的重渲染走 useSyncExternalStore，是一次**同步**更新——同步更新里挂起
+  // 的组件会让 React 丢掉整棵树（"A component suspended while responding to
+  // synchronous input"），表现为登录后整页白屏。useDeferredValue 把这次换表降级成
+  // 非紧急更新，React 会保留当前画面直到新页面的 chunk 到位。
+  const deferredRouter = useDeferredValue(router);
   const [id, setId] = useState<string>("");
   const [dropKey, setDropKey] = useState<string>("");
   const [tabTitles, setTabTitles] = useState<Record<string, React.ReactNode>>(
@@ -62,7 +68,7 @@ const Routes: React.FC = observer(() => {
         <NavTabBarContent.Provider value={dropTabValue}>
           <NavTabBarTitleContent.Provider value={tabTitleValue}>
             <PermissionsContent.Provider value={permissionsValue}>
-              <AliveScope>{useRoutes(router)}</AliveScope>
+              <AliveScope>{useRoutes(deferredRouter)}</AliveScope>
             </PermissionsContent.Provider>
           </NavTabBarTitleContent.Provider>
         </NavTabBarContent.Provider>

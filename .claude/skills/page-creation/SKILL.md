@@ -5,6 +5,10 @@ description: Use this skill when creating, modifying, reviewing, auditing, or sc
 
 # 页面创建规范 (src/pages)
 
+<!-- 维护须知：正文里不要出现「美元符号 + 数字」形式的占位符。skill 被调用时会把调用方传的
+     参数按位置替换掉它们，示例会被改写成一段无关文本（真踩过：SQL 例子里的两个位置绑定被换成了
+     调用参数的片段，读到的人看到的是一句语法不通的 SQL）。SQL 示例一律用 ? 表示绑定参数。 -->
+
 本 skill 规范 `src/pages/` 下 CRUD 业务页面的目录结构、Store 约定和组件装配方式。目标是产出与既有模块一致的代码，而不是自由发挥。
 
 ## 先决条件 — 先读这些
@@ -78,7 +82,7 @@ src/pages/<category>/<ModuleName>/
 - **antd 兜底（hsu-ui 无对应）**：`message`、`notification`、`Popover`、`Tooltip`、`Divider`、`Segmented`、`Spin`、`Empty`、`Row/Col` 栅格、`Space` 等。
 - 拿不准某组件 hsu-ui 有没有：先查 `node_modules/@hsu-react/ui/es/index.d.ts` 的导出（或文档站 <https://vitatsui.github.io/hsu-ui>），再决定 import 来源。
 
-**同名不等于同物——`Form` 是唯一的例外，别「顺手改正」**：hsu-ui 的 `Form` 只导出 `Modal` / `Drawer` / `Import` / `useForm` 四个成员（见 `Form/index.d.ts` 的 `FormType`），**它本身不是表单容器**。需要一个裸的 `<Form>` 包住若干 `FormItem`（登录页就是典型）时，容器只能从 antd 拿：
+**同名不等于同物——`Form` 是唯一的例外，别「顺手改正」**：hsu-ui 的 `Form` 只导出 `Modal` / `Drawer` / `Import` / `useForm` 四个成员（见 `Form/index.d.ts` 的 `FormType`），**它本身不是表单容器**。需要一个裸的 `<Form>` 包住若干 `FormItem`（登录页就是）时，容器只能从 antd 拿：
 
 ```tsx
 // ✅ 正确：容器走 antd，FormItem / Button 仍走 hsu-ui
@@ -306,6 +310,9 @@ export default new XxxStore();
 - **`_modeType` 始终声明**（即便是 `{}`）——脚手架和现有模块都显式挂了 `protected accessor _modeType = {};`，子类保持一致，便于后面按需加模式而不改签名。
 - 若有"固定不变的查询条件"（如 `tid: 0`），覆写 `_staticSearchData`；字段需要特殊比较模式（如 `IS`、`EQ`）时在 `_modeType` 里登记，例如嵌套列表按父级 ID 精确过滤：`protected accessor _modeType = { excepStratId: "EQ" };`。
 - `delData` 成功后再次调用 `getDataSource()` 刷新；不要自行 splice `_dataSource`。
+- **一次刷新只发一发请求**。别为了「顺带算个统计」在同一个方法里对同一个接口发第二发——素材库的 `loadItems` 曾经既拉当前条目、又拉一次全库供角标计数，而未选中条目时**两发的 URL 完全一样**，每次增删改要发 3 个请求。统计能从已有数据里算就用 `get` 派生，算不出来再单独开一个方法、由页面按需调。
+- **角标/计数与列表过滤必须同源**。同一页上的「待办 12」和点进去的结果集要来自同一份数据：素材库的角标数的是全库、列表过滤的是当前条目，点「待写用法 12」只出 2 行，用户没法理解。写计数的 getter 时问一句「它和 `items` 是不是同一个来源」。
+- **失败分支不要静默**。`if (res.code === 0) { ... }` 后面没有 `else` 是最常见的漏，接口挂了页面只是空着；`.catch` 同理（至少要复位 loading）。
 - **系统参数（`/sys/param/getValByKey`）等非选项类数据放页面自己的 Store，不要塞进 `OptionsStore`**：`OptionsStore` 只承载下拉/枚举选项（`Options("XXX")` 工厂消费的那种 `SelectOption[]`）。需要从 `/sys/param/getValByKey` 取的 system param、健康检查值、单值字符串等，挂在使用该值的页面 Store 上，按 `@computed get xxx() / @observable accessor _xxx / public getXxx = () => apiCall().then(...)` 的三段式落地（参考 `DataViewSearchStore` 的 `defaultColumnCount`/`getDefaultColumnCount`）。多个页面需要同一个系统参数也照此办理：每个页面 Store 各放一份，让数据归属和加载时机跟着页面走，而不是堆到全局 store。判断标准：如果这个值不会通过 `Options("KEY")` 当成下拉项渲染，就不属于 `OptionsStore`。
 
 ## 表单弹窗 `XxxForm/index.tsx` 模板
@@ -629,7 +636,7 @@ export default new XxxStore();
 关键点：
 - 只调用 `makeAutoObservable(this)`，不要 import `observable` / `computed` / `action`，也不要写 `@observable` / `@computed` / `accessor`。
 - 私有字段保持 `_` 前缀 + 公开 getter 的只读边界，命名与模式 A 一致；只是少了装饰器。
-- 业务 `code !== 0` 的错误提示用项目已有的 `showResError(res)`（`src/pages/cockpit/_utils/utils.ts`），不要直接 `notification.error`。
+- 业务 `code !== 0` 的错误提示：若项目有统一 helper（如 `showResError(res)`）就用它；**本项目没有该 helper**，无继承的独立 store 直接 `notification.error({ message: res.msg ?? "…" })` 即可，但不要写在 tsx 里——提示归 store。
 - 一旦将来把这个 store 加到继承链上（例如改挂 `FormModalStore`），必须切回模式 A（`makeObservable` + 显式装饰器）。
 
 ### 命名约定（两种模式通用）
@@ -715,6 +722,69 @@ export default new EntryStore();
 import EntryStore from "../EntryStore";
 const { fields } = EntryStore;
 ```
+
+## 页面是懒加载的：不要把页面拖进入口图
+
+`RouterService` 用 `require.context(..., "lazy")` 把 `pages/**/index.tsx` 切成按需加载的 chunk，`RouterContainer` 已经备好 `<Suspense>`。这套机制很容易被无意破坏，破坏后**不会报错、不会变慢一点点，而是首屏直接翻几倍**。
+
+### 规则一：入口图里不要静态 import 任何页面组件
+
+入口图 = `src/index.tsx` → `Routes` → `router.config.tsx` → `App` → `layout/**`。这些文件里 `import SomePage from "@/pages/..."` 会把那个页面连同它的全部依赖拉进首屏。
+
+真实代价：`App.tsx` 里静态 import 了改密弹窗 `PwdChange`，它用 `FormItem`，而 hsu-ui 的 `FormItem` 会**静态引入全部字段渲染器**——`FormEditor→wangeditor`、`FormCodeMirror→codemirror`、`FilePreview→pdfjs`、`Spreadsheet→xlsx`。一个改密弹窗把约 2.5 MB 未压缩的三方库钉在首屏。
+
+需要在 layout/入口里挂页面级组件时（改密、登录）：
+
+```tsx
+const PwdChange = lazy(() => import("./pages/PwdChange"));
+
+// 而且只在真正打开时才挂载，关着的时候连 chunk 请求都不发
+{pwdOpen && (
+  <Suspense fallback={null}>
+    <PwdChange open={pwdOpen} onCancel={...} onOk={...} />
+  </Suspense>
+)}
+```
+
+### 规则二：入口图里也别静态 import 重组件
+
+同理，`Panel` → `Search` → `FormItem` → 全部字段渲染器，`Chart` → echarts。`RouterService` 只在「外链菜单」这条极少走到的分支用 `Panel.Iframe`，为此专门包了一层 `router/_components/IframePanel` 懒加载它。**加/删这层包装的实测差异：85 个 script / 965 KB(gzip) ↔ 126 个 / 2913 KB。**
+
+懒加载重组件时用**深路径**，别 `import("@hsu-react/ui").then(m => m.Panel.Iframe)`——后者会把整个 barrel 拉进这个异步块，等于没省：
+
+```ts
+const LazyIframePanel = lazy(
+  () => import("@hsu-react/ui/es/components/Panel/IframePanel")
+);
+```
+
+> 页面文件里照常 `import { Panel } from "@hsu-react/ui"`。深路径只用于**入口图**中不得不引用重组件的地方，别推广到页面侧。
+
+### 规则三：懒加载 ＋ 同步更新 = 白屏，别在 store 里同步换路由表
+
+React 18 里，**同步更新中挂起的组件会让 React 丢掉整棵树**并抛 `A component suspended while responding to synchronous input`。而 `observer` 的重渲染走 `useSyncExternalStore`，是同步更新。
+
+菜单拉回后 `RouterService` 整体换掉路由表 → `Routes`（observer）同步重渲染 → 渲染懒加载页面 → 挂起 → **登录后整页白屏**。项目里已经做了两道防护，改这一带时不要拆掉：
+
+```tsx
+// src/index.tsx —— 覆盖点菜单/按钮触发的同步导航
+<BrowserRouter future={{ v7_startTransition: true }}>
+
+// src/router/Routes.tsx —— 覆盖 MobX 换路由表这条路径（白屏的直接原因）
+const deferredRouter = useDeferredValue(router);
+useRoutes(deferredRouter)
+```
+
+**这类问题 `tsc` / `eslint` / `webpack build` 全绿也照样发生**——只能在浏览器里发现。凡是动了懒加载、路由装配、`splitChunks` 的改动，按 playwright-mcp-strategy 的要求必须跑一次登录→导航回归。
+
+### 追首屏体积时：第一跳往往不是根因
+
+用 webpack stats 沿 `reasons` 向上回溯到 `./src/` 边界，**每改一次都要重新量**，别假设上一次的结论还成立。真实案例：pdfjs 进首屏，第一次追到组件库的 `PdfPreview`，改完还在；第二次追到 `hsu-utils` 的 barrel，改完**还在**；第三次才发现是本项目 `Axios.ts` 深引了 `hsu-utils/lib/DownloadFile`（**CJS 产物**，而 CJS 里动态 import 被编译成同步 require）。
+
+两条推论：
+
+- **别深引三方包的 `lib/`**（CJS）。要深引也走 `es/`；能从 barrel 拿就从 barrel 拿。
+- 若根因确实落在 hsu-ui / hsu-utils / single-router 里，**不要在本项目内绕过或覆写**，按 CLAUDE.md 回库改，流程见 `upstream-lib-change` skill。那里还记了一个必踩的 semver 陷阱：`^0.0.x` 等价于精确锁定，会让库的修复被嵌套副本挡住，表现为「库改了也发版了、升级后却毫无变化」。
 
 ## tsx 消费 store：解构 + getter，不要回调
 
@@ -813,9 +883,27 @@ public loadRoles = (fn?: (list: RoleItem[]) => void) => {
 
 **触发抽取的硬条件**（满足任一就必须拆，不要按行数判断）：
 
-1. **同一段渲染逻辑在 ≥2 个页面出现**——哪怕只有类型名不同。写新页面前先搜有没有同构实现：最容易漏的是「一处已经抽成了组件，另一处又内联复制了一份」。
-2. **页面 `index.tsx` 里内联了 `<Modal>` / `<Form.Modal>`**——弹窗一律独立成目录。
+1. **同一段渲染逻辑在 ≥2 个页面出现**——哪怕只有类型名不同。写新页面前先搜有没有同构实现：真实案例里「规则页/基础设定/大纲」三页的文档树节点与「新建子页」弹窗曾逐字重复三份；书封网格更隐蔽——一处已有组件、另一处内联复制了一份。
+2. **路由页 `index.tsx` 里内联了 `<Modal>` / `<Form.Modal>`**——弹窗一律独立成目录。
 3. **该 UI 块自带接口调用**——见下条，优先级最高。
+
+#### 抽取要抽到底：只抽零件不抽壳，等于没抽
+
+第 1 条上一轮执行过一次，只抽走了「文档树节点」和「新建子页弹窗」两个零件，三页的 `index.tsx`、Store、`index.module.scss` 原样留着。结果是约 1280 行里 1000 行仍然同构，而且**漂移已经发生**：规则页的 `.ant-tree-node-content-wrapper` 停在旧版本，少了另外两页后来补的「树标题铺满」修复——改了两处、漏了第三处，正是重复代码的典型死法。
+
+抽取完成的判据是**「这三个页面之间还剩多少行是同构的」**，不是「有没有抽出过组件」。三页最终收敛成：
+
+- `stores/basisStoreClass/DocTreeStore.ts` —— 行为全在这里，按配置注入接口（**不用继承**：独立 store 用 `makeAutoObservable`，继承链下会报错；配置注入还能顺带保住 store ↔ API 一一对应）
+- `work/_components/DocTreePage/` —— 页面壳 ＋ 唯一一份 scss，差异走 props（权限码、两句文案、可选的 `before` 插槽）
+- 各页只剩 20 余行：建 store、传配置
+
+**共享组件的落点要看消费者在哪。**`DocTreePage` 没有放 `src/components/`，因为三个消费者都在 `work/` 下、且它要用 `work/_components/ProseEditor`——放全局层会变成"共享组件反向 import 页面私有目录"，把一个违规换成另一个违规。
+
+#### 审计时别把已合规的弹窗当成违规
+
+用 `grep -l "<Modal" **/index.tsx` 找违规会**误报**：`FieldManage/`、`VolumeManage/`、`LastCommitDiffModal/` 这些本身就是独立弹窗组件（自带 Store、props 四件套、独立目录），它们的 `index.tsx` 里当然有 `<Modal>`，那正是合规的样子。
+
+真正的违规只有一种：**路由页**（在 `router.config.tsx` 或后端菜单里注册过的那个 `index.tsx`）里内联 `<Modal>`。判断方法是先确认这个 `index.tsx` 是不是路由目标，而不是看文件名。
 
 ### 弹窗里有接口调用 → 必须独立成组件 ＋ 自带 Store
 
@@ -833,7 +921,7 @@ public loadRoles = (fn?: (list: RoleItem[]) => void) => {
 - props 固定 `open` / `title` / `id` / `onCancel` / `onOk`；父级 ID 另加具名字段
 - 组件内 `const [store] = useState(() => new XxxStore())`
 - 失败提示走 store（继承基类用 `_message(res)`，独立 store 用 `notification`），**组件里不出现 `notification.error`**
-- **例外**：纯前端校验提示（如「填的不是合法 JSON」）留在组件里——规范禁的是「接口失败提示」，不是所有提示
+- **例外**：纯前端校验提示（如「检查定义不是合法 JSON」）留在组件里——规范禁的是「接口失败提示」，不是所有提示
 
 ### 弹窗 Store 与页面 Store 的分工
 
@@ -842,8 +930,8 @@ public loadRoles = (fn?: (list: RoleItem[]) => void) => {
 判据：这份数据在弹窗关闭后页面还要不要显示？要 → 放页面 store。
 
 ```ts
-// ✅ 「分配角色」弹窗：可选清单/勾选草稿/保存 在弹窗 store；
-//    「本用户已分配哪些角色」页面列表要显示 → 收进页面 store
+// ✅ 关联图书弹窗：可选清单/勾选草稿/保存 在弹窗 store；
+//    「本作已关联哪些图书」页面列表要显示 → 收进 MaterialStore.assocBooks
 // ❌ 若把它放弹窗 store，弹窗就得用回调把业务数据回传给页面——见「tsx 消费 store」一节的反模式
 ```
 
@@ -857,27 +945,27 @@ public loadRoles = (fn?: (list: RoleItem[]) => void) => {
 
 ### 弹窗产生、关闭后才展示的数据，连同展示弹窗收进同一模块
 
-上一条判据有个边界情形：**数据是弹窗动作的产物，但要在该弹窗关闭之后才展示**。典型是「新建后只给一次」的凭据/密钥/导出结果。
+「弹窗关闭后页面还要不要显示」这条判据有个边界情形：**数据是弹窗动作的产物，但要在该弹窗关闭之后才展示**。典型是新建 MCP 令牌的明文——建完才给，且只给一次。
 
-放页面 store 就得让弹窗用回调把它回传给页面，那正是被点名的反模式。正解是**把展示弹窗也认成这条流程的后半段**，一起收进弹窗模块：
+放页面 store 就得让弹窗用回调把明文回传给页面，那正是上一节点名的反模式。正解是**把展示弹窗也认成这条流程的后半段**，一起收进弹窗模块：
 
 ```
-XxxForm/
-├── index.tsx          # 创建表单 Form.Modal ＋ 结果展示 Modal（两个都在这）
-├── index.module.scss  # 连同结果区的样式一起搬过来
-└── XxxFormStore.ts    # 一次性结果的状态在这里，页面完全不感知
+TokenForm/
+├── index.tsx          # 创建表单 Form.Modal ＋ 明文展示 Modal（两个都在这）
+├── index.module.scss  # 连同 .plainBox / .plainText / .plainHint 一起搬过来
+└── TokenFormStore.ts  # plaintext 状态在这里，页面完全不感知
 ```
 
 页面只留 `onOk={loadList}` 刷新列表。判据补充为：**这份数据是页面自身的状态，还是某条流程的中间产物？**中间产物跟着流程走，不要为了「归页面」而制造回调。
 
 ### 一套 formItems 服务两个弹窗时，合并成一个组件
 
-「新建」和「编辑」用同一组表单项、只是必填规则或附加区块不同时，不要开两个目录，**合并成一个组件，用 `id` 有无区分**：
+「新建 own 素材」和「编辑素材」用的是同一组表单项，只是必填规则和附加区块不同。不要开两个目录，**合并成一个组件，用 `id` 有无区分新建/编辑**：
 
 ```tsx
-// id 有值＝编辑，无值＝新建
-required: !id || someCondition,
-outsideChildren={extra ? <附加区块 /> : undefined}
+// MaterialForm：id 有值＝编辑，无值＝新建
+required: !id || canonRequired,          // 新建必填；编辑看这条是不是 as_is
+outsideChildren={snapshot ? <快照面板 /> : undefined}   // 只有从图书馆来的才有快照
 ```
 
 两个目录会让同一套字段定义分叉，改一处忘另一处。
@@ -890,10 +978,10 @@ outsideChildren={extra ? <附加区块 /> : undefined}
 
 ```bash
 # 逐个确认外部调用数为 0，再删方法 + 清掉随之失效的 import
-grep -rn "\.addXxx(\|\.editXxx(" src/pages/ | grep -v XxxStore.ts
+grep -rn "\.addGroup(\|\.editGroup(" src/pages/ | grep -v XxxStore.ts
 ```
 
-删完 `tsc` 会直接报出失效的 import，照着清即可。一轮抽 8 处弹窗，通常就能清出 8 组孤儿方法。
+本轮抽 8 处弹窗，清出 8 组孤儿方法（`PackStore.addPack/editPack`、`EventStore.add/edit`、`BookTablesStore.create/edit`、`VolumeManageStore.addVolume/editVolumeData`、`TrashStore.addTombstone/editTombstoneData`、`PendingStore.add/edit/decide`、`TokenStore.create/rename/closePlaintext`、`CharacterStore.addCharacter/saveProfile/addStatus/editStatusRow`、`MaterialStore.addGroup/editGroup/addOwn/editItem`）。删完 `tsc` 会直接报出失效 import，照着清即可。
 
 ### 跨页 import 私有 store 禁止
 
@@ -902,7 +990,7 @@ grep -rn "\.addXxx(\|\.editXxx(" src/pages/ | grep -v XxxStore.ts
 - 数据属于父页面 → props 注入
 - 该组件本就该自己有 → 自建 store，API 按「Store 与 API 文件的一一对应」在自己的 API 文件里各留一份（接受 URL 重复）
 
-反例（真实踩过）：某表单 import 了另一个页面的私有 store 取下拉数据，单例被两处共写，表单里显示出**另一条主数据**下的选项。
+反例（真实踩过）：章节表单 import 了写作页 `VolumeManage` 的私有 store 取卷列表，单例被两处共写，章节表单里会显示**另一部作品**的卷。
 
 ### 二次确认用 `SecondConf` 的触发器模式
 
@@ -910,8 +998,8 @@ grep -rn "\.addXxx(\|\.editXxx(" src/pages/ | grep -v XxxStore.ts
 
 ```tsx
 <SecondConf
-  contentTitle={`删除「${it.name}」`}
-  contentText="删除后无法恢复，请谨慎操作。"
+  contentTitle={`删除《${it.title}》`}
+  contentText="整本书及其条目表将进入软删。"
   okButtonProps={{ danger: true }}
   onOk={() => onDelete(it)}
 >
@@ -919,7 +1007,7 @@ grep -rn "\.addXxx(\|\.editXxx(" src/pages/ | grep -v XxxStore.ts
 </SecondConf>
 ```
 
-- 渲染成「确认{contentTitle}吗？」，所以 `contentTitle` 写**动作**（`删除「张三」`），不是名词
+- 渲染成「确认{contentTitle}吗？」，所以 `contentTitle` 写**动作**（`删除《西游记》`），不是名词
 - 危险动作用 `okButtonProps={{ danger: true }}`；按钮文案不写死，跟 antd 中文默认的「确定/取消」走，除非语义特殊（如 `okText="回滚"`）
 - 触发元素自身的 `onClick` 照常先执行，且组件已 `stopPropagation`，嵌在可点击的卡片/行里不会连带触发整行
 
@@ -927,57 +1015,43 @@ grep -rn "\.addXxx(\|\.editXxx(" src/pages/ | grep -v XxxStore.ts
 
 仍用受控（传 `open`）的**唯一场景**：触发点不是元素而是配置对象，例如 Dropdown 的 `menu.items`、`Operate` 的操作项——此时无处可包，只能自持 `open` 并在外层渲染 `SecondConf`。
 
-不要在项目内再包一层自己的确认组件。组件能力不够时改回 hsu-ui 仓库发版、本项目升依赖——曾经有项目自建过一个 `ConfirmAction`，后来触发器模式并进 `SecondConf` 本体，本地组件随即删除。
+不要在项目内再包一层自己的确认组件。曾经有过一个本地 `ConfirmAction`，正是绕开了 CLAUDE.md「组件能力不满足需求时改动回 hsu-ui 仓库发版」；触发器模式后来并进了 `SecondConf` 本体，本地组件随即删除。
 
-## INPUTNUMBER 交出的是字符串（必踩，提交前必须转）
+## 多级异步链的 store 必须有序号守卫
 
-hsu-ui 的 `type: "INPUTNUMBER"` 表单项，`handleOk` 拿到的是 **`"1"` 而不是 `1`**。后端若把该字段声明为整型（如 Rust 的 `Option<i32>`），直接提交会被反序列化拒掉（**422**），且报错里看不出是哪个字段；若后端宽松些不报错，则会把字符串存进库或 JSON 字段，之后排序、比较、查重全走字符串序（`"10" < "9"`）。
-
-凡是带 `INPUTNUMBER` 的表单，提交前一律过一个归一助手：
+**只要一个 store 方法里有两跳以上的异步、而用户可以在它跑完前切换目标，就必须加序号守卫。** 典型是「按 id/seq 加载详情」这类：切目标时两条链并行，先发的完全可能后到，旧响应会盖到新目标身上。
 
 ```ts
-// src/utils/form.ts
-/**
- * hsu-ui 的 INPUTNUMBER 交出的是字符串，提交前要把这些字段转成数字。
- * 空串/undefined/null 一律转成 undefined（＝不提交该字段），而不是 0——
- * 0 对「初登场章」「目标字数」这类字段是有含义的真实取值。
- */
-export const toNumberFields = <T extends Record<string, unknown>>(
-  data: T,
-  keys: readonly string[]
-): T => {
-  const out = { ...data } as Record<string, unknown>;
-  for (const key of keys) {
-    const raw = out[key];
-    if (raw === "" || raw === null || raw === undefined) {
-      out[key] = undefined;
-      continue;
-    }
-    const n = Number(raw);
-    // 转不动就原样留着，让后端报出真正的问题，而不是在这里悄悄吞成 undefined
-    out[key] = Number.isNaN(n) ? raw : n;
-  }
-  return out as T;
+/** load 的序号：切目标时自增，异步回调据此丢弃迟到响应 */
+private _loadSeq = 0;
+
+public load = (workId: string, seq: number) => {
+  const seqToken = ++this._loadSeq;
+  const fresh = () => seqToken === this._loadSeq;
+
+  this._chapter = {};
+  getChaptersBySeq(workId, seq).then((res) => {
+    if (res.code !== 0 || !fresh()) return;          // ① 第一跳
+    // …
+    getManuscriptDoc(ch.manuscript_doc_id).then(async (doc) => {
+      if (doc.code !== 0 || !fresh()) return;        // ② 第二跳
+      const local = await idbGet(`draft:${ch.id}`);
+      if (!fresh()) return;                          // ③ 连本地读也算一跳
+      // …落数据
+    });
+  });
 };
 ```
 
-调用方式：
+要点：
 
-```tsx
-import { toNumberFields } from "@/utils/form";
+- **每一跳都要检查，不能只在最外层查一次**。本地 IndexedDB 读取、`await` 出来的任何东西都算一跳。
+- 守卫要**覆盖同一条链上的衍生调用**。上例里 `_syncRefLabels(doc)` 自己还会发一个解析请求，它也得在入口处捕获 `this._loadSeq` 并在回调里比对，否则引用名会串到别的目标上。
+- 「乱序只是显示错一下」是低估：真正的代价是**版本凭据被污染**。上例里迟到响应会把 `_bodyVersion` 写成上一章的，之后每一次保存都撞 409，且用户没有任何自救手段。
 
-/** hsu-ui 的 INPUTNUMBER 交出的是字符串，提交前要转成数字 */
-const NUMBER_FIELDS = ["seq", "priority"] as const;
+**判断标准：这个 store 里有没有「先清空再异步填充」的字段？**有就说明存在中间态，就要问「填充回来时目标还是不是它」。
 
-const handleOk = (raw: Record<string, unknown>) => {
-  const data = toNumberFields(raw, NUMBER_FIELDS);
-  // …照常提交
-};
-```
-
-**动态字段同理但更隐蔽**：由字段定义生成的表单项（用户自定义列），值往往落进 JSON 列，字符串不会报错但会造成类型漂移。这类要在**收口函数**里按字段定义的 `kind` 统一转，不要散落到各个 `handleOk`。
-
-搜索项里的 `INPUTNUMBER` 不用转——它进 query string，不影响存储。
+对照：`ListPanelStore._refreshRowData` 早就用 `_rowRefreshSeq` 做了同样的事（按主键记序号、乱序丢弃）；写作台的 `save()` 也有 `stale` 检查。**新写的加载路径要跟上，不要只在保存路径上防。**
 
 ## 静态内容页变体（`Panel.Default`）
 
@@ -1462,6 +1536,25 @@ import { getYyyList } from "@/services/apis/<category>/yyy";
 2. **必须**同时通过 `Skill` 工具调起 `api-creation` skill，把页面对应的 `src/services/apis/<category>/<modulename>.ts` 文件纳入检查——路径是否镜像、文件名是否对应、函数命名、类型命名、`ListRes` 用法等。
 3. 汇总两部分违规项一并产出报告；不要只给页面层面的结论而忽略 API 层的硬违规（比如 API 路径没镜像页面、文件名起了泛名）。
 
+### 全项目审计时，这几项 grep 一遍就能查（性价比最高）
+
+逐文件读完 200+ 个文件不现实，下面几条能在几分钟内捞出大部分真问题：
+
+| 查什么 | 怎么查 | 为什么值得 |
+|---|---|---|
+| **权限码对不上后端** | 抓前端所有 `hasPermi` 里的码，与后端下发的权限码全集做差集（本项目后端在哪个文件里维护这张表，第一次查时确认一次） | 前端用了后端不下发的码 → 按钮**永久隐藏**且没有任何报错。真捞到过一个（`work:outline:upd`），整页两个保存按钮不可见 |
+| **首屏体积** | `npm run build` 后数 `dist/index.html` 里的 `<script>` 个数与 gzip 总量 | 代码分割失效是静默的，只体现在体积上 |
+| **反向依赖** | `grep -rn 'from "@/pages/' src/layout src/components src/router src/stores src/hooks` | 共享层 import 页面私有目录 |
+| **antd 误用** | `grep -rn 'from "antd"' src` 再比对兜底白名单 | 一眼能判 |
+| **MobX 两种模式混用** | `makeAutoObservable` 的文件列表 ∩ `extends (ListPanelStore\|FormModalStore)` 的文件列表 | 交集非空即运行时报错 |
+| **死代码** | 对每个模块 `grep -rl "<名字>" src \| grep -v 自身` 数引用 | 捞到过 941 行零引用的 store |
+| **重复代码** | 把疑似同构的两个文件用 `sed` 归一化标识符后 `diff` | 比肉眼比对可靠得多，能量化「还剩多少行同构」 |
+| **依赖是否真被用** | 对 `package.json` 每个依赖 `grep -rl` src，再排掉组件库自己的依赖 | 注意区分「没被 src 直接 import」与「真没用」——组件库的依赖会被重复声明 |
+
+**基线要先跑**：`tsc --noEmit` 与 `eslint --max-warnings 0`。它们全绿说明问题都在类型系统之外，值得记在报告里——也提醒你别把时间花在它们能覆盖的地方。
+
+**报告要分严重度并给出证据**（文件:行号、实测数字），把「改了会怎样」写清楚；不要把风格问题和会丢数据的缺陷混在一起排。
+
 ## 反例（常见错误，避免）
 
 - ❌ 忘记加 `observer(...)` —— MobX 数据更新不会触发重渲染
@@ -1473,18 +1566,24 @@ import { getYyyList } from "@/services/apis/<category>/yyy";
 - ❌ 用 `import XxxStore from "../../stores/XxxStore"` —— store 是页面私有时应放在页面文件夹内，而不是全局 stores
 - ❌ 删除行后手动 splice `_dataSource` —— 直接 `getDataSource()` 重拉更简单也更不易出错
 - ❌ 在 `_components/`/`_contComps/` 之外复用页面私有组件 —— 需要复用就升级到 `src/components/`，不要跨页直接 import 下划线目录的内容
-- ❌ 从其它模块的 API 文件里 import 函数复用 —— 即使 URL 相同，也要在本 store 对应的 API 文件里各自新增一份，保持 store ↔ API 一一对应
 - ❌ 页面 `index.tsx` 里内联 `<Modal>` —— 弹窗一律独立成目录；带接口调用的还要配自己的 Store
 - ❌ 弹窗/组件里直接 `import { getXxx } from "@/services/apis/…"` —— 接口调用归 store
 - ❌ 同一段渲染逻辑在两个页面各写一遍 —— ≥2 页面复用就升到 `src/components/`
+- ❌ 跨页 import 别的页面 `_components/` 或页面目录下的私有 store —— props 注入或自建
+- ❌ `layout/`、`src/components/`、`src/router/`、`src/stores/` 里 `import ... from "@/pages/..."` —— 方向反了。共享层要用的东西上提到 `src/stores/` 或 `src/components/`；判断落点看消费者都在哪一层
+- ❌ 抽取重复代码只抽零件、留下同构的页面壳与 store —— 判据是「三个页面之间还剩多少行同构」，不是「有没有抽出过组件」
+- ❌ 入口图（`index.tsx`/`Routes`/`router.config`/`App`/`layout/**`）里静态 import 页面组件或 `Panel`/`FormItem`/`Chart` 这类重组件 —— 会把整个组件库的重依赖钉进首屏，见「页面是懒加载的」一节
+- ❌ 在 MobX store 里同步换掉路由表而不加 `useDeferredValue` —— 懒加载页面在同步更新里挂起会让 React 丢掉整棵树，表现为白屏
+- ❌ 多跳异步的加载方法不加序号守卫 —— 切目标时旧响应会盖掉新目标，最坏结果是版本凭据被污染、之后每次保存都 409
+- ❌ 同一次刷新对同一接口发两发请求（顺带算统计）—— 统计从已有数据派生，或单开方法按需调
+- ❌ 角标计数与列表过滤取不同数据源 —— 点进去的结果对不上角标数字
 - ❌ 用 antd `Popconfirm` / `Modal.confirm` 做二次确认 —— 用 hsu-ui 的 `SecondConf`
 - ❌ 列表 `map()` 里用受控 `SecondConf`，把「哪一行待确认」提到循环外 —— 用触发器模式，原地包住触发元素
 - ❌ 在项目内二次封装 hsu-ui 组件补能力 —— 改回 hsu-ui 发版，本项目升依赖
 - ❌ 后端没详情接口就用 props 把整行传给弹窗 —— 推动后端补 `GET /xxx/{id}`，否则会拿旧 `version` 撞乐观锁
 - ❌ 表格文本列裸 `String(value)` —— 截断后看不到全文，包 `TextEllipsis`
 - ❌ flex 列容器不给 `height: 100%` —— 子元素 `flex: 1` 不生效，下半屏空着
-- ❌ 带 `INPUTNUMBER` 的表单直接提交 —— 交出的是字符串 `"1"`，整型字段会被拒成 422，要过 `toNumberFields`
+- ❌ 从其它模块的 API 文件里 import 函数复用 —— 即使 URL 相同，也要在本 store 对应的 API 文件里各自新增一份，保持 store ↔ API 一一对应
 - ❌ 弹窗抽成独立目录后不回头删页面 store 里的 `addXxx`/`editXxx` —— 失去调用点即死代码
-- ❌ 把「弹窗产生、关闭后才展示」的一次性结果放页面 store —— 会被迫用回调回传，应连同展示弹窗收进弹窗模块
-- ❌ 新建和编辑用同一套 formItems 却开两个弹窗目录 —— 字段定义会分叉，应合并成一个组件用 `id` 有无区分
+- ❌ 把「弹窗产生、关闭后才展示」的数据（如令牌明文）放页面 store —— 会被迫用回调回传，应连同展示弹窗收进弹窗模块
 - ❌ 看到 `import { Form } from "antd"` 就当违规改成 hsu-ui —— hsu-ui 的 `Form` 不是容器，只有 `Modal`/`Drawer`/`Import`/`useForm`

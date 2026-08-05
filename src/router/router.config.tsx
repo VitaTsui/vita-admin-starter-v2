@@ -1,7 +1,11 @@
 import App from "@/App";
-import Login from "@/pages/Login";
-import { ReactNode } from "react";
+import { ReactNode, lazy } from "react";
 import { Navigate, RouteObject } from "react-router-dom";
+
+// 登录页必须懒加载。它和 App 里的改密弹窗是入口图里仅有的两个 hsu-ui `FormItem`
+// 消费者，而 FormItem 静态引入了全部字段渲染器（wangeditor / codemirror / pdfjs /
+// xlsx）。代价只是未登录用户多一次 chunk 往返，而已登录用户根本不渲染登录页。
+const Login = lazy(() => import("@/pages/Login"));
 
 // Detail/sub-pages (with route params, not in the backend menu) are explicitly registered here as admin child routes.
 // Example: const FooDetail = lazy(() => import("@/pages/foo/Detail"));

@@ -8,13 +8,17 @@ import {
   UserOutlined,
 } from "@ant-design/icons";
 import { Outlet, useNavigate } from "react-router-dom";
-import React, { useEffect, useState } from "react";
+import React, { Suspense, lazy, useEffect, useState } from "react";
 import { getUserInfo } from "./utils/auth";
 
 import Breadcrumb from "./layout/Breadcrumb";
 import { Button, Icon } from "@hsu-react/ui";
 import Menu, { MenuType } from "./layout/Menu";
-import PwdChange from "./pages/PwdChange";
+// 改密弹窗懒加载：App 在入口图里，而 PwdChange 会用到 hsu-ui 的 FormItem，
+// 而 FormItem 静态引入了全部字段渲染器（FormEditor→wangeditor、
+// FormCodeMirror→codemirror、FilePreview→pdfjs、Spreadsheet→xlsx）。
+// 静态导入它等于把这几个库钉进首屏，而用户点了顶栏「修改密码」才需要它。
+const PwdChange = lazy(() => import("./pages/PwdChange"));
 import RouterService from "./router/RouterService";
 import { ADMIN_HOME } from "./router/router.config";
 import { clearAllCookie } from "./services/Axios";
@@ -239,11 +243,16 @@ const App: React.FC = observer(() => {
         </Layout>
       </Layout>
 
-      <PwdChange
-        open={pwdOpen}
-        onCancel={() => setPwdOpen(false)}
-        onOk={() => logout(quit)}
-      />
+      {/* 只在真正打开时才拉这个 chunk，关着的时候连请求都不发 */}
+      {pwdOpen && (
+        <Suspense fallback={null}>
+          <PwdChange
+            open={pwdOpen}
+            onCancel={() => setPwdOpen(false)}
+            onOk={() => logout(quit)}
+          />
+        </Suspense>
+      )}
     </Theme>
   );
 });

@@ -9,12 +9,11 @@ import axios, {
   ResponseType,
 } from "axios";
 
-import { Typeof } from "hsu-utils";
+import { Typeof, getFileNameFromHeader } from "hsu-utils";
 import { debounce } from "lodash";
 import { getAccessToken } from "@/utils/auth";
 import { notification } from "antd";
 import wsCache from "@/utils/wsCache";
-import { getFileNameFromHeader } from "hsu-utils/lib/DownloadFile";
 
 /**
  * Get the CSRF Token
@@ -350,6 +349,22 @@ interface Params {
 }
 
 /**
+ * 把 params 里的 query 提到 URL 上（Query 类已经 encodeURIComponent 过，直接拼）。
+ *
+ * 返回**新的** params，不改调用方传进来的那个对象。从前这里是 `delete params.query`
+ * 就地删——目前所有调用点都传新建的对象字面量所以没爆，但只要有人改成传 store 里
+ * 持有的稳定对象，query 就会被永久删掉，第二次请求静默变成无条件全量查询。
+ */
+const liftQuery = <P>(url: string, params?: Params | P) => {
+  const { query, ...rest } = (params ?? {}) as Params;
+
+  return {
+    url: query ? `${url}?query=${query}` : url,
+    params: rest as P,
+  };
+};
+
+/**
  * GET
  * @param url
  * @param config
@@ -367,16 +382,11 @@ export const get = async <T, P = object>(
 ): Promise<ResType<T>> => {
   if (!url) return Promise.reject("url is required");
 
-  let _url = url;
-
-  const params = config?.params as Params;
-  if (params?.query) {
-    _url = `${_url}?query=${params.query}`;
-    delete params.query;
-  }
+  const { url: _url, params } = liftQuery<P>(url, config?.params);
 
   const res = await axios.get(_url, {
     ...config,
+    params,
     headers: {
       Authorization: getToken(),
       ...config?.headers,
@@ -402,16 +412,11 @@ export const post = async <T = undefined, D = object, P = object>(
 ): Promise<ResType<T>> => {
   if (!url) return Promise.reject("url is required");
 
-  let _url = url;
-
-  const params = config?.params as Params;
-  if (params?.query) {
-    _url = `${_url}?query=${params.query}`;
-    delete params.query;
-  }
+  const { url: _url, params } = liftQuery<P>(url, config?.params);
 
   const res = await axios.post(_url, data, {
     ...config,
+    params,
     headers: {
       Authorization: getToken(),
       ...config?.headers,
@@ -435,16 +440,11 @@ export const del = async <T = undefined, P = object>(
 ): Promise<ResType<T>> => {
   if (!url) return Promise.reject("url is required");
 
-  let _url = url;
-
-  const params = config?.params as Params;
-  if (params?.query) {
-    _url = `${_url}?query=${params.query}`;
-    delete params.query;
-  }
+  const { url: _url, params } = liftQuery<P>(url, config?.params);
 
   const res = await axios.delete(_url, {
     ...config,
+    params,
     headers: {
       Authorization: getToken(),
       ...config?.headers,
@@ -483,7 +483,6 @@ export const put = async <T = undefined>(
 interface streamRequestOptions<T = Record<string, unknown>>
   extends FetchEventSourceInit {
   data: T;
-  permissionCode?: boolean;
 }
 export function streamRequest<T>(
   url: string,
@@ -516,12 +515,6 @@ export function streamRequest<T>(
     };
   }
 
-  if (options.permissionCode) {
-    _options.headers = {
-      ...(_options.headers || {}),
-      permissionCode: "industry-chain-graph",
-    };
-  }
 
   const controller = new AbortController();
   fetchEventSource(url, {
@@ -537,7 +530,9 @@ export function streamRequest<T>(
     onerror(err) {
       controller.abort();
       onerror && onerror(err);
-      throw new Error(err);
+      // 往外抛才能让 fetchEventSource 停止重连。原样抛出拿到的错误——从前是
+      // `new Error(err)`，err 是对象时消息会变成 "[object Object]"，把真正的失败原因擦掉。
+      throw err;
     },
     openWhenHidden: true,
   });
