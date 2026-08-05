@@ -125,6 +125,63 @@ XMLHttpRequest.prototype.send = function (b) {
 
 项目用 axios（XHR），**钩 `window.fetch` 抓不到任何请求**。
 
+## 验证竞态修复：用延迟钩子造乱序，不要靠手速
+
+「切目标时旧响应盖掉新目标」这类竞态，**连点是碰运气**——本地后端毫秒级返回，几乎撞不出来。要确定性复现，就人为制造乱序。
+
+`browser_route` **不能用**：它只能返回固定的 mock 响应，没有「延迟后放行真实请求」的能力。可行的办法是在页面里钩 XHR，**推迟目标请求的 `send`**（推迟发送与推迟响应对竞态而言等价）：
+
+```js
+// 只把「装弹后的第一发 /api/docs/」推迟 5s，让后点的那个先返回
+const oo = XMLHttpRequest.prototype.open, os = XMLHttpRequest.prototype.send;
+window.__armed = false; window.__delayedOnce = false; window.__docLog = [];
+XMLHttpRequest.prototype.open = function (m, u) { this.__u = String(u); return oo.apply(this, arguments); };
+XMLHttpRequest.prototype.send = function (...args) {
+  const u = this.__u || "";
+  const isTarget = /\/api\/docs\/[0-9a-f-]+$/.test(u);
+  if (isTarget) {
+    const t0 = Date.now();
+    this.addEventListener("load", () => window.__docLog.push({ u, at: Date.now() - t0 }));
+  }
+  if (isTarget && window.__armed && !window.__delayedOnce) {
+    window.__delayedOnce = true;
+    setTimeout(() => os.apply(this, args), 5000);
+    return;
+  }
+  return os.apply(this, args);
+};
+```
+
+然后：装弹 → 点目标 A（其请求被扣住）→ 立刻点目标 B → 等被扣的那发落地 → 断言界面**仍是 B**。`__docLog` 用来证明乱序确实发生了（A 5011ms、B 9ms）。
+
+**光看界面还不够，要验被污染的那个状态。** 竞态真正的代价常常不是「显示错一下」，而是版本凭据、id 之类的隐藏状态被写坏，下一次写操作才爆。所以乱序之后**再做一次写操作**，抓请求头确认它用的是 B 的凭据：
+
+```
+PUT /chapters/<B 的 id>/body    if-match: 2  →  200
+resp: { chapter_version: 3, doc_id: "<B 的 doc>" }
+```
+
+没有守卫的话这里会带着 A 的版本号撞 409——那才是用户实际遇到的故障。
+
+## 编译全绿 ≠ 没问题：这几类改动必须进浏览器
+
+`tsc` / `eslint` / `webpack build` 全过，页面照样可以是白屏。真实案例：改完代码分割后四项检查全绿，一登录整页空白——React 18 在**同步更新**里遇到懒加载组件挂起会丢掉整棵树（`A component suspended while responding to synchronous input`），这是纯运行时行为。
+
+下列改动**一律**要在浏览器里跑一遍「登录 → 主要页面导航 → 看 console」：
+
+- 懒加载 / 代码分割 / `require.context` / `splitChunks` / `MiniCssExtractPlugin` 等构建配置
+- 路由装配（`router.config`、`RouterService`、`Routes`、`RouterContainer`）
+- 全局 Provider、入口 `index.tsx`
+- 把某个组件从静态导入改成 `lazy()`（或反之）
+
+排查这类错误时注意：**`A component suspended...` 的调用栈里出现 `flushSyncCallbacks` / `performSyncWorkOnRoot`，说明是同步更新路径**。若栈里没有路由导航，多半是 MobX `observer` 的重渲染（走 `useSyncExternalStore`，同步），此时 `BrowserRouter` 的 `v7_startTransition` 治不了，得在数据源头用 `useDeferredValue`。
+
+## `browser_console_messages` 的 `all: true` 会混入历史
+
+不带 `all` 时返回的是**本次导航之后**的消息，那才是「当前状态干不干净」的答案。带 `all: true` 会把整个会话的历史倒出来——包括修复前的报错、以及你编辑源码过程中 dev server 的编译中间态。用它做「改完了没问题」的结论会得出相反答案。
+
+判断修复是否生效：**重新导航一次，再看不带 `all` 的结果**。
+
 ## hsu-ui Table 的列隐藏不移除节点
 
 列显隐用 `width: 0.01` ＋ `.hidden`（`width: 0 !important`、内层 `display: none`）实现，**`<th>` 始终留在 DOM 里**。判断某列是否隐藏要量 `getBoundingClientRect().width`（隐藏后约 `0.0078px`），用「节点还在不在」判断会得出「列显隐不生效」的错误结论。

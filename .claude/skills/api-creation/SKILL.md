@@ -113,12 +113,107 @@ export const deleteXxx = async (id: number | string) => {
 
 ## 方法与 URL 约定
 
-- 所有列表接口：`GET /<模块前缀>/page`，`params` 中通常携带 `query`（由 `Query` 类编码得到的字符串）
-- 所有详情接口：`GET /<模块前缀>/info/{id}`（路径参数）或 `GET /<模块前缀>/dtl`（query 形式，按后端约定）
+**先看后端是哪一套**——脚手架式（`/add` `/upd` `GET /del?ids=`）与 REST 式（`POST` `PATCH` `DELETE` ＋ `If-Match`）在同一份规范里并存，取决于本项目后端的真实契约。新增模块时读同目录既有文件对齐，不要照搬另一套。
+
+### A. 脚手架式（Java 后端惯例）
+
+- 列表：`GET /<模块前缀>/page`，`params` 携带 `query`（由 `Query` 类编码）
+- 详情：`GET /<模块前缀>/info/{id}` 或 `GET /<模块前缀>/dtl`
 - 新增：`POST /<模块前缀>/add`
-- 修改：`POST /<模块前缀>/upd`（少数模块新增/修改共用 `/save`，遵循后端实际约定）
-- 删除：`GET /<模块前缀>/del?ids={id}`（**注意：删除走 GET，参数名是 `ids`**，与直觉相反，但这是项目约定）
-- 简单枚举/下拉列表：`GET /<模块前缀>/list`，返回 `ListRes<{ id, nm }>` 或 `ListRes<{ cd, nm }>`
+- 修改：`POST /<模块前缀>/upd`（少数模块新增/修改共用 `/save`）
+- 删除：`GET /<模块前缀>/del?ids={id}`（删除走 GET、参数名 `ids`，与直觉相反但这是该套约定）
+- 枚举/下拉：`GET /<模块前缀>/list`
+
+### B. REST 式（本项目 Rust 后端即此套）
+
+- 列表：`GET /q/<资源>`，`params.query` 同样由 `Query` 类编码；非分页清单走各自的 `GET /<复数资源>`
+- 详情：`GET /<复数资源>/{id}`
+- 新增：`POST /<复数资源>`
+- 修改：`PATCH /<复数资源>/{id}`，**乐观锁走 `If-Match` 请求头**，不是 body 字段：
+  ```ts
+  export const editXxx = async (data: XxxData) => {
+    const { id, version, ...rest } = data;
+    return await patch(`/xxx/${id}`, rest, {
+      headers: { "If-Match": String(version) } as unknown as AxiosHeaders,
+    });
+  };
+  ```
+  解构剔除只读字段时，被剔除的绑定要加 `_` 前缀（`item_count: _itemCount`），否则触发 `no-unused-vars`；键名不变，排除逻辑照旧。
+- 删除：`DELETE /<复数资源>/{id}`（从 `@/services/Axios` 导入 `del`）
+- 子资源：`GET/POST /<父资源>/{id}/<子资源>`
+
+**详情端点是弹窗回填的前提，缺了就补。** 抽表单弹窗时若发现某资源只有列表接口、没有 `GET /<复数资源>/{id}`，不要退化成父页面 props 传整行（理由见 page-creation「缺详情接口时不要用 props 传整行」），而是推动后端补上、并在本文件里导出：
+
+```ts
+// 详情：表单按 id 回填
+export const getXxx = async (id: number | string) => {
+  return await get<XxxData>(`/xxx/${id}`);
+};
+```
+
+本项目为此补过 6 个：`/volumes/{id}`、`/tombstones/{id}`、`/mcp-tokens/{id}`、`/status/{id}`、`/material-groups/{id}`、`/materials/items/{id}`。注意路径要跟着后端真实路由走——素材是 `/materials/items/{id}` 而不是 `/materials/{id}`。
+
+**409 冲突封套**：`PATCH` 撞乐观锁时后端返回 409，并把服务端最新整行放在 `data.error.details.current`。API 文件本身不处理它（拦截器与 store 负责），但**要在函数上方注释里点明该接口带乐观锁**，便于调用方知道要接冲突恢复：
+
+```ts
+// 修改（乐观锁：If-Match 版本，不匹配返回封套 code 409 ＋ 服务端当前内容）
+```
+
+### 写接口顺带推进了别的资源的 version → 必须回传新版本号
+
+一个写接口除了改自己那张表，往往还会更新关联行的派生列。**只要那次 UPDATE 带了 `version = version + 1`，响应就必须把新版本号交回来**，否则调用方手里的版本立刻过期，而它没有任何正当办法拿到新的。
+
+真实案例（某写作类项目）：`PUT /chapters/{id}/body` 存正文时，顺带 `UPDATE chapter SET han_count, para_count, status, version = version + 1`（字数段数是正文的派生列），但响应只回了 doc 的版本号。结果是每存一次草稿、客户端手里的 `chapter.version` 就落后一版，**定稿必 409**。前端为了绕过去，在提交前重新拉一次章去「补版号」——那正是 page-creation 里点名禁止的 lost update，把乐观锁整个废掉了。
+
+后端写法（`RETURNING` 拿回新版本，放进响应）：
+
+```rust
+let (chapter_version,): (i32,) = sqlx::query_as(
+    "UPDATE chapter SET han_count = $2, para_count = $3, version = version + 1 \
+     WHERE id = $1 RETURNING version",
+)
+.bind(id).bind(han).bind(paras)
+.fetch_one(&mut *tx)
+.await?;
+
+Ok(ok(json!({
+    "doc_id": doc_id, "version": doc_version, "chapter_version": chapter_version,
+    // …
+})))
+```
+
+前端侧在返回类型里声明出来，并在注释里说明它是什么、调用方要拿它干嘛：
+
+```ts
+// 返回的 version 是正文页的新版本，chapter_version 是章行的新版本——存正文会顺带
+// 推进章行（字数/段数/状态是正文的派生列），调用方必须两个都记下来，否则定稿时
+// 手里的章版本已经过期，只能重新拉一次章来补版号（那就是废掉乐观锁的 lost update）。
+export const putChapterBody = async (id: string, body: ProseDoc, version: number) => {
+  return await put<{
+    doc_id: string;
+    version: number;
+    chapter_version: number;
+    han_count: number;
+    para_count: number;
+  }>(`/chapters/${id}/body`, { body }, {
+    headers: { "If-Match": String(version) } as unknown as AxiosHeaders,
+  });
+};
+```
+
+**自查**：写完一个写接口，问一句「它有没有 bump 除自己外的 version？」有就必须回传。
+
+### 权限码必须在后端 `permissions()` 的全集里
+
+页面按钮的 `hasPermi` 用了一个后端不下发的码，`usePermissions` 会判定无权 → **按钮永久隐藏，没有任何报错**。而且 `permissions` 尚未加载时它返回 `true`，现象是「按钮闪一下就没了」，比彻底不显示更难查。
+
+新增受权限门控的按钮时，同步在后端维护权限码全集的那张表里确认/补齐对应模块（本项目在哪个文件，第一次查时确认一次）：
+
+```rust
+("work:outline", &["query", "add", "upd", "del"]),
+```
+
+审计时把前端所有 `hasPermi` 的码抓出来与后端全集做差集，**前端多出来的都是 bug**（后端多下发的无害）。
 
 ## 两种常见 API 形态的选择
 
@@ -133,7 +228,8 @@ export const deleteXxx = async (id: number | string) => {
 
 ## 返回类型
 
-- 列表：统一用 `get<ListRes<XxxData>>(...)`——**分页和非分页 list 接口都用同一个 `ListRes<T>` 泛型**。后端对非分页接口只返 `{ list }` 不返 `page` 是常见情况；前端侧仍然套 `ListRes<T>`，消费者按需取 `list` 即可，不要另造 `{ list: T[] }` 这种手写形状（会让类型在项目里碎片化）。只在消费端真要用 `page` 字段时再做 `page?.total ?? 0` 之类的可选访问。
+- 列表：**看后端返回的键名**。分页接口返回 `{ list, page }` → 用 `ListRes<XxxData>`；本项目 REST 后端的非分页清单返回的是 `{ items }`（键名不是 `list`），套 `ListRes` 就是错的类型，此时手写 `get<{ items: XxxData[] }>(...)` 是正确做法。真正要避免的是同一形状在各文件反复内联——若同项目 `{items}` 出现十余处，应在 `src/services/ResType.ts` 补一个 `ItemsRes<T>` 统一引用。
+- 列表（键名为 `list` 时）：统一用 `get<ListRes<XxxData>>(...)`——**分页和非分页 list 接口都用同一个 `ListRes<T>` 泛型**。后端对非分页接口只返 `{ list }` 不返 `page` 是常见情况；前端侧仍然套 `ListRes<T>`，消费者按需取 `list` 即可，不要另造 `{ list: T[] }` 这种手写形状（会让类型在项目里碎片化）。只在消费端真要用 `page` 字段时再做 `page?.total ?? 0` 之类的可选访问。
 - 详情/单对象：`get<XxxData>(...)` 或 `post<XxxData>(...)`
 - 无业务 data：省略泛型，`post(...)` 即可——返回 `ResType<undefined>`
 - 文件下载：调用方在 `config` 中传 `responseType: "blob"`/`"arraybuffer"`，此时响应会被 `Axios.ts` 自动包装成 `FileRes`（`{ filename, data }`），类型写 `get<FileRes>(...)`（需要 `import { FileRes } from "@/services/ResType"`）。
@@ -167,7 +263,12 @@ export const deleteXxx = async (id: number | string) => {
 - ❌ API 目录结构与 `src/pages/` 下对应页面路径不一致 —— 页面大类目录必须在 API 层镜像一份
 - ❌ 删除接口用 `del("/xxx/del/" + id)` —— 项目统一用 `get("/xxx/del", { params: { ids: id } })`
 - ❌ 直接导出 `interface XxxData` —— 应导出 `type XxxData = Partial<IXxxData>`，保留内部 `IXxxData` 作为完整形状
-- ❌ 非分页列表接口手写 `{ list: T[] }` 类型 —— 仍然用 `ListRes<T>`，把碎片化收敛掉
+- ❌ 后端返回 `{ list }` 却手写 `{ list: T[] }` 类型 —— 该用 `ListRes<T>`，把碎片化收敛掉（返回 `{ items }` 的接口不适用此条，见「返回类型」）
 - ❌ 在 API 文件里写 `try/catch` 或 `notification.error` —— 全局拦截器已处理
 - ❌ 把简单的下拉列表接口单独开文件 —— 应追加到 `apis/enum.ts`
 - ❌ 在 `apis/` 下放一次性种子/引导脚本（`_initXxx.ts`） —— 脚本属于 `src/utils/` 或项目级 `scripts/`，不进 API 层
+- ❌ 抽弹窗时发现缺详情接口就让父页面 props 传整行 —— 应推动后端补 `GET /<复数资源>/{id}` 并在本文件导出 `getXxx`
+- ❌ 写接口 bump 了别的资源的 `version` 却不在响应里回传 —— 调用方手里的版本立刻过期，只能靠「提交前重新拉一次」补版号，等于把乐观锁废掉
+- ❌ 页面用了后端 `permissions()` 不下发的权限码 —— 按钮永久隐藏且无报错，新增门控按钮时两侧要对齐
+- ❌ 在 `get`/`post`/`del` 的封装里就地 `delete params.query` 改调用方传入的对象 —— 调用方若传的是 store 持有的稳定对象，`query` 会被永久删掉，第二次请求静默变成无条件全量查询；应解构出 rest
+- ❌ 保留脚手架残留的死分支 —— 如按 `res.data.header.code` 判 401（本项目封套是 `{code,msg,data}`，没有 `header` 这层）、写死别的产品的请求头

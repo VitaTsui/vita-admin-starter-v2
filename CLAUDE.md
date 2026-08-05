@@ -6,7 +6,7 @@
 2. hsu-ui 没有的能力才用 antd 兜底（如 `message`、`notification`、`Popover`、`Tooltip`、`Divider`、`Segmented`、`Spin`、`Empty`）。
 3. **禁止**用 antd 同名组件替代 hsu-ui 已有组件（antd 的 `Table`/`Modal`/`Switch`/`Select`/`Button` 等都不允许直接用）。拿不准先查 `node_modules/@hsu-react/ui/es/index.d.ts` 的导出或文档站 <https://vitatsui.github.io/hsu-ui>。
 
-组件能力不满足需求时，改动回 hsu-ui 仓库发版，再升级本项目依赖；不要在本项目内 fork/覆写组件。
+组件能力不满足需求时，改动回 hsu-ui 仓库发版，再升级本项目依赖；不要在本项目内 fork/覆写组件。具体怎么改、怎么在消费方验收益、版本号与依赖范围怎么动、PR 走什么流向、发版后怎么收尾，见 `upstream-lib-change` skill（同样适用于 hsu-utils 与 single-router）。
 
 ## 页面 / 接口 / 选项 / 菜单开发
 
@@ -17,6 +17,7 @@
 - `options-management`：`OptionsStore` 下拉/枚举选项
 - `menu-function-management`：运行中应用的菜单/功能管理
 - `playwright-mcp-strategy`：前端源码改动与浏览器验证
+- `upstream-lib-change`：根因在 hsu-ui / hsu-utils / single-router 时的改动与发版
 
 ## 技术栈约定
 
