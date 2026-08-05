@@ -12,19 +12,34 @@ import Routes from "./router/Routes";
 
 import { SingleRouter } from "@hsu-react/single-router";
 
-import { ChakraProvider, createSystem, defaultConfig } from "@chakra-ui/react";
-import createCache from "@emotion/cache";
-import { CacheProvider } from "@emotion/react";
+import { addCollection, IconifyJSON } from "@iconify/react/dist/iconify.js";
+import iconCollections from "./assets/iconify/collections.generated.json";
 
-const cache = createCache({
-  key: "css",
-  prepend: true,
+// 源码里写死的图标：构建前由 scripts/genIconCollections.cjs 扫描生成，
+// 只含实际用到的十几个（完整图标集有几百 MB，整集注册会全部进首屏）。
+(iconCollections as unknown as IconifyJSON[]).forEach((collection) => {
+  addCollection(collection);
 });
 
-const system = createSystem(defaultConfig, {
-  disableLayers: true,
-  preflight: false,
+// 菜单图标由后端下发，取值范围是 hsu-ui IconSelect 提供的四套图标集，静态分析拿不到。
+// 启动后异步补齐，不占首屏体积；Iconify 会在集合到位后自动重绘已挂载的图标。
+// 这里的 import() 路径与 IconSelect 内部完全一致，webpack 会复用同一批 chunk。
+void Promise.all([
+  import("@iconify/json/json/ant-design.json"),
+  import("@iconify/json/json/ep.json"),
+  import("@iconify/json/json/fa.json"),
+  import("@iconify/json/json/fa-solid.json"),
+]).then((modules) => {
+  modules.forEach((module) => {
+    addCollection((module.default ?? module) as unknown as IconifyJSON);
+  });
 });
+
+// 这里从前挂着全局 ChakraProvider + CacheProvider，把 @chakra-ui/react + @emotion/*
+// + zag-js（约 570 KB）无条件带进首屏，而真正用到 chakra 的只有 Button.Chakra。
+// hsu-ui 0.0.23 起这两层已收进 ChakraButton 自带的 ChakraRoot，跟着它的异步 chunk 走，
+// 入口不再需要。若某个页面要直接使用 chakra 组件（不经 Button.Chakra），
+// 从 @hsu-react/ui 引 ChakraRoot 在那个页面自行包一层即可。
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   // v7_startTransition：把路由状态更新包进 startTransition。
@@ -35,13 +50,9 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
   // chunk 到位。
   <BrowserRouter future={{ v7_startTransition: true }}>
     <SingleRouter showPath={false}>
-      <CacheProvider value={cache}>
-        <ChakraProvider value={system}>
-          <Internationalization>
-            <Routes />
-          </Internationalization>
-        </ChakraProvider>
-      </CacheProvider>
+      <Internationalization>
+        <Routes />
+      </Internationalization>
     </SingleRouter>
   </BrowserRouter>,
 );
