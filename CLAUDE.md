@@ -8,6 +8,18 @@
 
 组件能力不满足需求时，改动回 hsu-ui 仓库发版，再升级本项目依赖；不要在本项目内 fork/覆写组件。具体怎么改、怎么在消费方验收益、版本号与依赖范围怎么动、PR 走什么流向、发版后怎么收尾，见 `upstream-lib-change` skill（同样适用于 hsu-utils 与 single-router）。
 
+### 两个反直觉点（都踩过）
+
+**`Button` 的 `title` 是 children 的兜底，不是原生 tooltip。**内部渲染的是 `children ?? title`，给图标按钮写 `title="改章号"` 会把这三个字**当内容渲染出来**，图标旁多出一截文字、把同一行的其它内容挤没。要悬浮提示就包一层 antd `Tooltip`：
+
+```tsx
+<Tooltip title="改章号">
+  <Button type="text" size="small" icon={<SwapOutlined />} onClick={...} />
+</Tooltip>
+```
+
+**`Input.TextArea` 里层 textarea 的样式要走 `textAreaClassName`，且部分属性要 `!important`。**`resize` / `font-size` / `line-height` 与 `.ant-input` 同为单类选择器、且组件库样式加载在后，不加 `!important` 会被盖掉（实测写了 `resize: none` 仍留着拖拽手柄、行高仍是 antd 默认值）。改完去浏览器量 computed style，别只看源码。
+
 ## 页面 / 接口 / 选项 / 菜单开发
 
 创建或修改相应内容时，先调起 `.claude/skills/` 下的项目级 skill 并遵循其规范：
@@ -18,6 +30,11 @@
 - `menu-function-management`：运行中应用的菜单/功能管理
 - `playwright-mcp-strategy`：前端源码改动与浏览器验证
 - `upstream-lib-change`：根因在 hsu-ui / hsu-utils / single-router 时的改动与发版
+
+## 布局与通用 hooks
+
+- 顶栏是 `src/layout/Header/`，`App.tsx` 只剩壳、Sider、Content 和改密弹窗。顶栏要用页面侧的东西（`LoginStore`、懒加载的 `PwdChange`）时**倒过来注入**——`Header` 只收 `menu: AccountAction[]`，不 import `@/pages/…`。理由与代价见 `page-creation` skill 的「页面是懒加载的」一节。
+- `@/hooks/useCollapsed(key, defaultCollapsed)`：面板折叠态 ＋ localStorage 记忆，默认值是显式参数。凡是「这块能收起来、下次进来还记得」的侧板/卡片都用它，别各写一份。
 
 ## 技术栈约定
 
