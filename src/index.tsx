@@ -27,7 +27,13 @@ const system = createSystem(defaultConfig, {
 });
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
-  <BrowserRouter>
+  // v7_startTransition：把路由状态更新包进 startTransition。
+  // 页面是懒加载的（见 RouterService 的 require.context "lazy"），而点击菜单/登录
+  // 按钮触发的导航属于「同步输入」——React 18 遇到同步更新里挂起的组件会直接用
+  // fallback 替换整棵树并抛 "A component suspended while responding to synchronous
+  // input"，表现为点完按钮整页白屏。开了这个 flag 后 React 会保留当前画面直到新
+  // chunk 到位。
+  <BrowserRouter future={{ v7_startTransition: true }}>
     <SingleRouter showPath={false}>
       <CacheProvider value={cache}>
         <ChakraProvider value={system}>

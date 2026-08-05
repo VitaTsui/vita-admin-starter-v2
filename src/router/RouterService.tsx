@@ -1,9 +1,12 @@
 import { MenuList, getMenuList, getPermissions } from "@/services/apis/permit";
-import { autorun, makeAutoObservable } from "mobx";
-import { cloneDeep, debounce } from "lodash";
+import { makeAutoObservable } from "mobx";
+import { cloneDeep } from "lodash";
 import wsCache, { CACHE_KEY } from "@/utils/wsCache";
 
-import { Icon, Panel } from "@hsu-react/ui";
+import { Icon } from "@hsu-react/ui";
+// Panel 不能在这里静态导入：它会顺着 Panel → Search → FormItem 把全部字段渲染器
+// 和 Chart → echarts 拖进首屏。详见 IframePanel 里的说明
+import IframePanel from "./_components/IframePanel";
 import NoFoundPage from "@/404";
 import { Outlet } from "react-router";
 import { ADMIN_BASE, RouteType } from "./router.config";
@@ -56,7 +59,23 @@ function wrapRoutes(routes: RouteType[]): RouteType[] {
  * Dynamically import all page components with webpack's require.context
  * This is a webpack-specific feature for importing modules in bulk
  */
-const pages = require.context("../pages/", true, /\.tsx$/);
+/**
+ * Dynamically import page components with webpack's require.context.
+ *
+ * 第四个参数 "lazy" 是关键：默认的 "sync" 模式会把所有匹配到的模块拉进入口图，
+ * 外面套的 lazy() 完全没有分割收益——整个 pages 目录、连同它从 @hsu-react/ui
+ * 传递引入的富文本/表格/图表/PDF 都会进首屏。"lazy" 模式下 r(key) 返回 Promise，
+ * 每个页面各自成 chunk，正是 RouterContainer 里 <Suspense> 已经准备好接的形态。
+ *
+ * 正则只匹配页面入口（`<...>/index.tsx`）；下面的 filter 再排除页面私有目录与
+ * 表单弹窗——它们不可能是菜单目标，且已能通过父页面的静态引用到达，匹配进来
+ * 只会白白多出一堆 chunk。
+ */
+const pages = require.context("../pages/", true, /\/index\.tsx$/, "lazy");
+
+/** 不可能作为菜单目标的路径段：页面私有目录与表单弹窗 */
+const isPrivateModulePath = (key: string) =>
+  key.split(/[\\/]/).some((seg) => seg.startsWith("_") || /Form$/.test(seg));
 
 /**
  * Convert all page components into a lazy-loaded component map
@@ -70,16 +89,17 @@ function importAll(r: __WebpackModuleApi.RequireContext) {
   > = {};
 
   r.keys()
-    .filter((key) => !key.includes("/_contComps/") && !key.includes("\\_contComps\\"))
+    .filter((key) => !isPrivateModulePath(key))
     .forEach((key) => {
       const normalizedKey = key
         .toLowerCase()
         .replace(/\.tsx$/, "")
         .replace(/^\.\//, "");
 
-      // lazy() requires a function that returns a Promise
-      // Modules returned by webpack's require.context need to be wrapped in a Promise
-      modules[normalizedKey] = lazy(() => Promise.resolve(r(key)));
+      // "lazy" 模式下 r(key) 本身就是模块命名空间的 Promise，正是 lazy() 想要的形状
+      modules[normalizedKey] = lazy(
+        () => r(key) as Promise<{ default: React.ComponentType }>
+      );
     });
 
   return modules;
@@ -101,25 +121,18 @@ class RouterStore {
   private _menuList: MenuList[] = [];
 
   // Debounced functions must be persisted to avoid creating new instances on every autorun
-  private _debouncedGetMenuList: ReturnType<typeof debounce>;
-  private _debouncedGetPermissions: ReturnType<typeof debounce>;
-
   constructor() {
     makeAutoObservable(this);
 
-    // Initialize the debounced functions in the constructor
-    this._debouncedGetMenuList = debounce(this.getMenuList.bind(this), 300);
-    this._debouncedGetPermissions = debounce(
-      this.getPermissions.bind(this),
-      300
-    );
-
-    autorun(() => {
-      if (getAccessToken()) {
-        this._debouncedGetMenuList();
-        this._debouncedGetPermissions();
-      }
-    });
+    // 冷启动（带着已有 token 刷新页面）时把菜单与权限拉起来。
+    // 这里从前是 autorun ＋ 两个 debounce：autorun 里只读了 getAccessToken()，
+    // 而 token 存在 localStorage、不是 observable，所以它只会执行一次，
+    // 那两个 debounce 从来没有第二次调用可去重——直接调用即可，语义还更清楚。
+    // 登录成功后的刷新由 LoginStore 显式调 getMenuList(true) / getPermissions(true)。
+    if (getAccessToken()) {
+      this.getMenuList();
+      this.getPermissions();
+    }
   }
 
   public getPermissions = async (reload: boolean = false) => {
@@ -137,14 +150,16 @@ class RouterStore {
   public getMenuList = async (reload: boolean = false) => {
     const router = cloneDeep(Router);
 
+    // 与 getPermissions 同一套策略：先用缓存立即渲染，再拉最新覆盖。
+    // 从前是「有缓存就只读缓存、完全不请求」，部署新增菜单后旧缓存会一直挡着
+    // 新菜单，直到用户重新登录一次——两个方法行为不一致本身也是坑。
     if (wsCache.get(CACHE_KEY.ROLE_ROUTERS) && !reload) {
       this._menuList = wsCache.get(CACHE_KEY.ROLE_ROUTERS);
-    } else {
-      const res = await getMenuList();
-      if (res.code === 0) {
-        this._menuList = res.data.menuList;
-        wsCache.set(CACHE_KEY.ROLE_ROUTERS, this._menuList);
-      }
+    }
+    const res = await getMenuList();
+    if (res.code === 0) {
+      this._menuList = res.data.menuList;
+      wsCache.set(CACHE_KEY.ROLE_ROUTERS, this._menuList);
     }
 
     const _router = this._formatMenuLIst(this._menuList);
@@ -265,14 +280,14 @@ class RouterStore {
     if (urlType === "route") {
       const router = Router.find((route) => route.path === `/${normalizedUrl}`);
       if (router) {
-        _router.element = <Panel.Iframe children={router.element} fullBtn />;
+        _router.element = <IframePanel>{router.element}</IframePanel>;
         _router.meta = {
           ..._router.meta,
           noLazy: true,
         };
       }
     } else {
-      _router.element = <Panel.Iframe src={normalizedUrl} fullBtn />;
+      _router.element = <IframePanel src={normalizedUrl} />;
       _router.meta = {
         ..._router.meta,
         noLazy: true,

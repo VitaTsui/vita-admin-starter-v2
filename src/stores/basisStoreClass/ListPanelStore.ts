@@ -110,6 +110,8 @@ export default class ListPanelStore<
     this.changePage({ num: 1 });
   };
   public initSearchData = (searchData?: Partial<S>) => {
+    this._restorePageSize();
+
     if (searchData) {
       this._initSearchData = searchData;
     }
@@ -136,7 +138,31 @@ export default class ListPanelStore<
   @observable
   protected accessor _page: { num: number; size: number } = {
     num: 1,
-    size: wsCache.get(CACHE_KEY.PAGE_SIZE)?.[window.location.pathname] || 20,
+    size: 20,
+  };
+
+  /**
+   * 每页条数的缓存键：按页面路径隔离，**惰性取值**。
+   *
+   * 不能在字段初始化时读 window.location.pathname——store 的构造时机是它所在模块
+   * 首次被 import 的那一刻，未必是本页处于激活状态的时候（单例 store 尤其如此），
+   * 那时读到的可能是别的页面的路径，于是这一页去读/写了别人的每页条数。
+   * 这里等到真正发生翻页动作时再取，那时本页一定是当前页。
+   */
+  private accessor _pageSizeKey: string | undefined = undefined;
+  private _cacheKey = () => {
+    if (this._pageSizeKey === undefined) {
+      this._pageSizeKey = window.location.pathname;
+    }
+    return this._pageSizeKey;
+  };
+
+  /** 从缓存恢复本页的每页条数，入口初始化时调用一次 */
+  private _restorePageSize = () => {
+    const size = wsCache.get(CACHE_KEY.PAGE_SIZE)?.[this._cacheKey()];
+    if (size) {
+      this._page = { ...this._page, size };
+    }
   };
   protected accessor _c: 1 | 0 = 0;
   public changePage = (
@@ -157,7 +183,7 @@ export default class ListPanelStore<
 
     wsCache.set(CACHE_KEY.PAGE_SIZE, {
       ...(wsCache.get(CACHE_KEY.PAGE_SIZE) || {}),
-      [window.location.pathname]: this._page.size,
+      [this._cacheKey()]: this._page.size,
     });
 
     this._query.toP(this._page.num, this._page.size, this._c);
@@ -313,7 +339,7 @@ export default class ListPanelStore<
     this._order = undefined;
     this._page = {
       num: 1,
-      size: wsCache.get(CACHE_KEY.PAGE_SIZE)?.[window.location.pathname] || 20,
+      size: wsCache.get(CACHE_KEY.PAGE_SIZE)?.[this._cacheKey()] || 20,
     };
     this._dataSource = [];
     this._total = 0;
