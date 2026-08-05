@@ -934,6 +934,8 @@ public loadRoles = (fn?: (list: RoleItem[]) => void) => {
 2. **搬走 state 时要一并搬走它的复位逻辑。**真实案例：某个「标题草稿」原本靠页面 `useEffect` 在切换目标时 `setDraft(undefined)` 复位；搬进子组件后没有这一步，会把上一个目标的输入串到新目标。解法是调用侧给 `key={当前目标 id}` 让它重挂载。**凡是把本地 state 下沉到子组件，先问一句「原来是谁在什么时候把它清掉的」。**
 3. **scss 跟着组件走，媒体查询也要跟着走。**CSS Module 的类名带 hash，把 `.xxx` 搬进子组件后，留在页面 scss 里的 `@media { .xxx { display:none } }` 会失配、**静默失效**（不报错、只是不生效）。
 
+**纯页面内状态用 `useState`，不要持久化。**面板折叠、卡片/列表视图切换这类只影响「当前这一眼怎么看」的状态，别写 localStorage：页签是 KeepAlive 缓存的，切走再回来本来就还在；而 localStorage 的 key 是全局的，这些状态却几乎都是针对当前对象的——真实案例里某个折叠态被所有对象共享，换个对象还顶着上一个的状态。判据：**这个状态换一个对象/换一个页签还成立吗？**不成立就是页面内状态。真要跨会话记的（登录态/主题/语言/每页条数）走 `wsCache`。
+
 **纯派生逻辑走 `_utils/`，不必包成组件。**「从字段定义 computed 出搜索项与列」这类没有 state / effect 的代码，导出成 `buildSearchItems` / `buildColumns` 之类的纯函数放 `_utils/`，页面只留 `useMemo` 缓存。判据：这段代码有没有自己的 state / effect？没有就是纯派生。
 
 **别为了凑行数把 `columns` 搬进 `_utils/`。**列定义里的 `render` 通常闭包引用了页面的 `setXxx`，硬搬出去要逐个改成参数注入，读一列渲染还要跳两个文件——那是负收益。要么连同 `<Table>` 一起拆成 `_contComps/XxxTable`（行操作走 `onEdit` / `onRemove` 这类具名 props），要么就留在页面里。
