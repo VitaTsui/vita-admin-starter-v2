@@ -37,7 +37,11 @@ const config = {
   devtool: "inline-source-map",
   plugins: [
     new webpack.DefinePlugin(definePlugin),
-    new MiniCssExtractPlugin(),
+    // 与 webpack.config.prod.cjs 保持一致：页面级代码分割后，同一批 hsu-ui 组件在不同
+    // 页面 chunk 里的引入顺序不一致，插件会逐个报 "Conflicting order" 刷屏。本项目
+    // （含 hsu-ui）的组件样式全部是 CSS Modules（类名带 hash 作用域），不存在跨模块
+    // 层叠覆盖，顺序无关紧要。全局样式由 index.tsx 显式按序引入，不受影响。
+    new MiniCssExtractPlugin({ ignoreOrder: true }),
     new ForkTsCheckerWebpackPlugin({
       typescript: {
         memoryLimit: 4096,
