@@ -131,10 +131,39 @@ class RouterStore {
     // 那两个 debounce 从来没有第二次调用可去重——直接调用即可，语义还更清楚。
     // 登录成功后的刷新由 LoginStore 显式调 getMenuList(true) / getPermissions(true)。
     if (getAccessToken()) {
+      // 缓存要在**构造函数里同步**装配一次，不能只靠 getMenuList 里那次异步读取：
+      // 带路由参数的详情页由菜单下发，而详情页常常是从别处以新标签页/深链直接打开的，
+      // 属于冷启动就落在 /admin/xxx/:id 上。首帧若只有静态骨架，React Router 会整条
+      // location 匹配不上（连 /admin 布局都不渲染），控制台报 No routes matched、
+      // 界面空一拍再补上。同步装配后有缓存即首帧可用，只有首次登录才需要等接口。
+      const cached: MenuList[] | null = wsCache.get(CACHE_KEY.ROLE_ROUTERS);
+      if (cached?.length) {
+        this._menuList = cached;
+        this._applyMenuToRouter();
+      }
+
       this.getMenuList();
       this.getPermissions();
     }
   }
+
+  /** 把当前 _menuList 装配进路由表（静态骨架 ＋ 菜单路由 ＋ 404 兜底） */
+  private _applyMenuToRouter = () => {
+    const router = cloneDeep(Router);
+
+    const _router = this._formatMenuLIst(this._menuList);
+    const children = router[0].children
+      ? router[0].children.concat(_router)
+      : _router;
+    router[0].children = wrapRoutes(children);
+
+    router.push({
+      path: "*",
+      element: <NoFoundPage />,
+    });
+
+    this._router = router;
+  };
 
   public getPermissions = async (reload: boolean = false) => {
     if (wsCache.get(CACHE_KEY.ROLE_PERMISSION) && !reload) {
@@ -149,8 +178,6 @@ class RouterStore {
   };
 
   public getMenuList = async (reload: boolean = false) => {
-    const router = cloneDeep(Router);
-
     // 与 getPermissions 同一套策略：先用缓存立即渲染，再拉最新覆盖。
     // 从前是「有缓存就只读缓存、完全不请求」，部署新增菜单后旧缓存会一直挡着
     // 新菜单，直到用户重新登录一次——两个方法行为不一致本身也是坑。
@@ -168,18 +195,7 @@ class RouterStore {
     // 不 await：图标到位后 Iconify 会自动重绘，菜单不必等它
     void ensureIcons(collectIcons(this._menuList));
 
-    const _router = this._formatMenuLIst(this._menuList);
-    const children = router[0].children
-      ? router[0].children.concat(_router)
-      : _router;
-    router[0].children = wrapRoutes(children);
-
-    router.push({
-      path: "*",
-      element: <NoFoundPage />,
-    });
-
-    this._router = router;
+    this._applyMenuToRouter();
   };
 
   /**
@@ -204,7 +220,11 @@ class RouterStore {
 
     // Admin pages are all mounted under the /admin prefix (the AI Q&A page owns the root path).
     // Both parent and child levels get the prefix here, keeping _normalizePath's parent-child merge logic unaffected.
+    // 前缀**只加给顶层节点**。子节点的 path 是相对父节点的片段（react-router v6 的
+    // 嵌套路由语义：`user`、`:id`、`detail/:id`），它的前缀由下面那步父路径合并一并
+    // 带上；这里若也补一次，`:id` 会先变成 `/admin/:id`，再拼成 `/admin/sys/user/admin/:id`。
     if (
+      !parentPath &&
       normalizedPath !== ADMIN_BASE &&
       !normalizedPath.startsWith(`${ADMIN_BASE}/`)
     ) {
@@ -257,22 +277,15 @@ class RouterStore {
     if (modules?.[lowerCaseUrl]) {
       const Element = modules[lowerCaseUrl];
 
-      if (_router.children) {
-        _router.element = <Outlet />;
-        _router.meta = {
-          ..._router.meta,
-          noLazy: true,
-          noCache: true,
-        };
-        _router.children.unshift({
-          index: true,
-          element: <Element />,
-          // Inherit the parent's name/icon; otherwise this default index page would create a tab with an empty label
-          meta: { name: _router.meta?.name, icon: _router.meta?.icon },
-        });
-      } else {
-        _router.element = <Element />;
-      }
+      // 有 url 就直接拿组件当 element——**带子路由时它就是布局壳**，由组件自己渲染
+      // <Outlet />（react-router v6 的嵌套路由语义），详情页的公共数据可以在壳里加载
+      // 一次、子页共用。
+      //
+      // 从前这里对「有 url ＋ 有 children」另做一套：element 换成 <Outlet />、把组件
+      // 降级成 index 子路由。那样父路径本身能显示页面，但**子路径不再经过该组件**，
+      // 布局壳就废了。菜单表那种「列表页 ＋ 带参详情页」不需要它——那边一律是
+      // 「父容器只做路径分段（url 空）＋ 列表与详情各自作叶子」。
+      _router.element = <Element />;
       return;
     }
 
@@ -317,6 +330,8 @@ class RouterStore {
           name: item.nm,
           title: item.nm,
           menu: !item.status,
+          // cat=1＝次级菜单根：进入它的子树后整个侧栏换成那些子页
+          secondary: item.cat === 1,
           icon: item.icon ? <Icon icon={item.icon} /> : undefined,
           hasPermi: item.perm ? [item.perm] : undefined,
         },

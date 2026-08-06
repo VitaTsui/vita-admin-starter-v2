@@ -25,6 +25,7 @@ const Login = lazy(() => import("@/pages/Login"));
  * noLazy: whether not lazy-loaded, default false
  * noAuth: whether to skip permission checks, default false
  * hasPermi: whether restricted by permissions
+ * secondary: 次级菜单根——进入它的子树后整个侧栏换成那些子页（来自菜单表的 cat=1）
  */
 export type MetaType = {
   title?: string;
@@ -39,6 +40,7 @@ export type MetaType = {
   noLazy?: boolean;
   noAuth?: boolean;
   hasPermi?: string[];
+  secondary?: boolean;
 };
 
 export type RouteType = {
