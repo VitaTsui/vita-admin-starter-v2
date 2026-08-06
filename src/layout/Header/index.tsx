@@ -32,6 +32,8 @@ export interface AccountAction {
   title: string;
   icon: string;
   onclick: () => void;
+  /** 危险动作（退出登录之类），悬浮态用红色区分 */
+  danger?: boolean;
 }
 
 interface HeaderProps {
@@ -140,6 +142,7 @@ const Header: React.FC<HeaderProps> = observer((props) => {
                 {menu?.map((item, index) => (
                   <Button
                     key={index}
+                    className={classNames({ menuBtnDanger: item.danger })}
                     icon={<Icon icon={item.icon} />}
                     onClick={item.onclick}
                     type="text"

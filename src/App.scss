@@ -271,6 +271,20 @@
 
     .menu .ant-btn {
       justify-content: flex-start;
+
+      width: 100%;
+
+      /* 图标贴左、文字贴右：图标容器右侧留白撑满，把文字推到右端——与上方
+         设置项右侧的控件对齐。每一项都这样，不是只有「退出登录」 */
+      .ant-btn-icon {
+        margin-right: auto;
+      }
+
+      /* 退出登录这类危险动作，用红色悬浮态区分 */
+      &.menuBtnDanger:hover {
+        background: color-mix(in srgb, var(--cf-error) 14%, transparent);
+        color: var(--cf-error);
+      }
     }
   }
 }

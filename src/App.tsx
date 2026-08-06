@@ -73,6 +73,7 @@ const App: React.FC = observer(() => {
         title: "退出登录",
         icon: "ep:switch-button",
         onclick: () => logout(quit),
+        danger: true,
       },
     ] as (AccountAction & { hasPermi?: string[] })[]
   ).filter((item) => checkPermission(item.hasPermi));
