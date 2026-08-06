@@ -186,6 +186,35 @@ resp: { chapter_version: 3, doc_id: "<B 的 doc>" }
 
 列显隐用 `width: 0.01` ＋ `.hidden`（`width: 0 !important`、内层 `display: none`）实现，**`<th>` 始终留在 DOM 里**。判断某列是否隐藏要量 `getBoundingClientRect().width`（隐藏后约 `0.0078px`），用「节点还在不在」判断会得出「列显隐不生效」的错误结论。
 
+## 别按行索引对照表格数据（antd 的隐藏 measure row）
+
+验「第 N 行的值/图标对不对」时，**不要拿 `tbody tr` 的下标去对数据数组的下标**。antd 在 `<tbody>` 的**第一个位置**插了一个隐藏测量行：
+
+```html
+<tr aria-hidden="true" class="ant-table-measure-row" style="height:0;font-size:0">
+```
+
+（`rc-table`：`Body/index.js` 里 `measureColumnWidth && <MeasureRow/>`，而 `measureColumnWidth = fixHeader || horizonScroll || isSticky`。）
+
+于是 `tr[0]` 是空行、`tr[1]` 才是第一条数据，整体错位一格，按索引比对会稳定地把「第 N 条数据」对到「第 N−1 行」上，得出**假的空白 / 错值**——真踩过：照这法子验菜单图标，报了个并不存在的「第一行图标空白」，追着一个不存在的 bug 改代码。
+
+**比错位更坑的是它时有时无**：只有开了 `scroll.x` / `scroll.y` / sticky 的表格才有这一行。列表页几乎都开了 `scroll`，没开的小表格则没有——同一套脚本在两个页面上结论不一致，很容易误归因到业务代码。
+
+按语义选数据行，别数 `tr`：
+
+```js
+// ✅ 只拿数据行
+[...document.querySelectorAll("tbody tr[data-row-key]")]
+// 或 tbody .ant-table-row / tbody tr:not(.ant-table-measure-row)
+
+// ❌ 会混进 measure row，还会混进展开行与空态行
+[...document.querySelectorAll("tbody tr")]
+```
+
+同一个 `<tbody>` 里还有两类非数据行同样破坏索引对齐：展开行 `.ant-table-expanded-row`、空态行 `.ant-table-placeholder`。树形表格里 `.ant-table-row` 按**展开后的文档顺序**排列，对应的是拍平后的数据，不是顶层数组。
+
+> 更稳的做法是不依赖顺序：从行里读唯一标识（`tr` 的 `data-row-key`、或某列文本）再回原数据里查，顺序怎么变都不影响结论。
+
 ## 截图文件路径
 
 调用 `browser_take_screenshot` 时，**必须显式传入 `filename`，把图片落到项目根下的 `tmp/` 目录**（例如 `filename: "tmp/binding-list.png"`）。原因：
