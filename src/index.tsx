@@ -15,24 +15,15 @@ import { SingleRouter } from "@hsu-react/single-router";
 import { addCollection, IconifyJSON } from "@iconify/react/dist/iconify.js";
 import iconCollections from "./assets/iconify/collections.generated.json";
 
-// 源码里写死的图标：构建前由 scripts/genIconCollections.cjs 扫描生成，
-// 只含实际用到的十几个（完整图标集有几百 MB，整集注册会全部进首屏）。
+// 精简图标集：构建前由 scripts/genIconCollections.cjs 生成，取「源码里写死的」与
+// 「菜单配置里用到的」（scripts/extraIcons.cjs）并集，整包几十 KB
+// —— 完整图标集有几百 MB，整集注册会全部进首屏。
+//
+// 这里不再无条件异步预加载 IconSelect 那四套整集（约 1.9 MB）：菜单图标已经随
+// 首屏就位，不必等；而且菜单图标很容易溢出那四套的范围，预加载既贵又盖不全。
+// 漏网的图标由 utils/ensureIcons 在拿到菜单数据时按需补，见 RouterService.getMenuList。
 (iconCollections as unknown as IconifyJSON[]).forEach((collection) => {
   addCollection(collection);
-});
-
-// 菜单图标由后端下发，取值范围是 hsu-ui IconSelect 提供的四套图标集，静态分析拿不到。
-// 启动后异步补齐，不占首屏体积；Iconify 会在集合到位后自动重绘已挂载的图标。
-// 这里的 import() 路径与 IconSelect 内部完全一致，webpack 会复用同一批 chunk。
-void Promise.all([
-  import("@iconify/json/json/ant-design.json"),
-  import("@iconify/json/json/ep.json"),
-  import("@iconify/json/json/fa.json"),
-  import("@iconify/json/json/fa-solid.json"),
-]).then((modules) => {
-  modules.forEach((module) => {
-    addCollection((module.default ?? module) as unknown as IconifyJSON);
-  });
 });
 
 // 这里从前挂着全局 ChakraProvider + CacheProvider，把 @chakra-ui/react + @emotion/*

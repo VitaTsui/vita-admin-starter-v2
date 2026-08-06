@@ -12,6 +12,7 @@ import { Outlet } from "react-router";
 import { ADMIN_BASE, RouteType } from "./router.config";
 import Router from "./router.config";
 import RouterContainer from "./_components/RouterContainer";
+import ensureIcons, { collectIcons } from "@/utils/ensureIcons";
 import { getAccessToken } from "@/utils/auth";
 import { lazy } from "react";
 import { array_is_includes } from "hsu-utils";
@@ -161,6 +162,11 @@ class RouterStore {
       this._menuList = res.data.menuList;
       wsCache.set(CACHE_KEY.ROLE_ROUTERS, this._menuList);
     }
+
+    // 菜单图标正常都已由 scripts/syncMenuIcons.cjs 固化进精简集，这里一个请求都不会发；
+    // 兜的是「菜单管理里配了新图标、前端还没重跑 gen:icons」——否则那几个图标就是空白。
+    // 不 await：图标到位后 Iconify 会自动重绘，菜单不必等它
+    void ensureIcons(collectIcons(this._menuList));
 
     const _router = this._formatMenuLIst(this._menuList);
     const children = router[0].children

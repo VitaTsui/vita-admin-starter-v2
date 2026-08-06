@@ -7,6 +7,7 @@ import {
 } from "@/services/apis/permit/menu";
 
 import ListPanelStore from "@/stores/basisStoreClass/ListPanelStore";
+import ensureIcons, { collectIcons } from "@/utils/ensureIcons";
 import { computed, makeObservable, observable } from "mobx";
 
 class MenuStore extends ListPanelStore<MenuSearchData, MenuData> {
@@ -42,6 +43,10 @@ class MenuStore extends ListPanelStore<MenuSearchData, MenuData> {
     getMenuList({ query: this._query.value }).then((res) => {
       const data = res.data;
       this._dataSource = data.list;
+
+      // 这里列的是全量菜单表，图标范围比当前用户的菜单树更大（还包括别人才看得到的菜单），
+      // 所以列表页要自己兜一次，不能指望 RouterService 那一次调用
+      void ensureIcons(collectIcons(this._dataSource));
 
       this._menuTree = this._formatTree(
         this._dataSource as Required<MenuData>[]

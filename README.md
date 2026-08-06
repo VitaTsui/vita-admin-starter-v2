@@ -78,6 +78,8 @@ yarn start
 | `yarn start` | 启动开发服务器（webpack-dev-server，HMR） |
 | `yarn build` | 生产构建（输出到 `dist/`） |
 | `yarn lint` | ESLint 检查（`--max-warnings 0`） |
+| `yarn gen:icons` | 生成精简图标集（`start` / `build` 已前置，一般不用手动跑） |
+| `yarn sync:menu-icons <菜单JSON>` | 把后端菜单里配置的图标固化成构建输入 |
 | `yarn crt:lp` | 生成列表页面（List Panel） |
 | `yarn crt:fp` | 生成表单页面（Form Panel） |
 | `yarn crt:lfp` | 生成「列表 + 表单」页面 |
@@ -86,6 +88,36 @@ yarn start
 
 > `crt:*` 为页面脚手架，脚本在 `scripts/`，对应模板在 `scripts/{ListPanel,FormPanel,...}`。
 > 这是本框架快速产出新页面的核心利器，强烈建议先熟悉。
+
+## 图标（Iconify）
+
+图标统一用 `@hsu-react/ui` 的 `<Icon icon="ant-design:home-outlined" />`。**不走 Iconify 在线 API**（内网 / 离线环境会全部不显示），而是在入口 `addCollection` 注册一份**按需裁剪**的图标集：`@iconify/json` 完整图标集有几百 MB，整集注册会全部进首屏，而实际用到的只有几十上百个。
+
+图标有两个来源，都要进这份精简集：
+
+| 来源 | 怎么进来 |
+| --- | --- |
+| 源码里写死的 | `gen:icons` 扫描 `src/**/*.tsx?` 里的 `"prefix:icon-name"` 字面量 |
+| 后端菜单配置的 | `sync:menu-icons` 从菜单 JSON 提取 → `scripts/extraIcons.cjs` → 被 `gen:icons` 一并裁剪 |
+
+菜单图标存在数据库、构建期扫不到源码，但必须**随首屏就位**，否则侧边菜单先空白一拍。所以菜单图标有增改时：
+
+```bash
+# 菜单 JSON 可以是 getMenuList 的响应，或后台导出的菜单配置
+yarn sync:menu-icons ./tmp/menu.json   # 更新 scripts/extraIcons.cjs
+yarn gen:icons                          # 裁进 collections.generated.json
+```
+
+`scripts/extraIcons.cjs` 与 `src/assets/iconify/collections.generated.json` 都是**生成物，但需要提交进仓库**，避免 CI 上没跑脚本导致编译失败；`start` / `build` 前置的 `gen:icons` 保证它不过期。
+
+新增图标集时，要同时补两处：`scripts/genIconCollections.cjs` 的 `PREFIXES`（源码扫描白名单）和 `src/utils/ensureIcons.ts` 的 `LOADERS`（运行时兜底）。缺了后者 `gen:icons` 会提示。
+
+`ensureIcons` 是兜底：`RouterService` 拿到菜单后检查图标是否已注册，**只对真正缺失的集合异步补一整套**。正常情况（图标都已裁进精简集）一个请求都不会发，兜的是「有人在菜单管理里配了新图标、前端还没重跑 `gen:icons`」。
+
+验证图标时有两个坑：
+
+- **别数 `<svg>` 个数**：Iconify 对未注册的图标照样渲染一个空 `<svg>`，数量对不代表画出来了。要看 `svg.children.length > 0`。
+- **开发机上「看着正常」不算数**：集合缺失时 Iconify 会兜底去请求在线 API（`api.iconify.design`），有外网就悄悄补上了；同一份代码部署到内网 / 离线环境就是空白图标。要确认某个图标是不是真的进了精简集，翻 network 看有没有 `api.iconify.design` 的请求，或直接查 `collections.generated.json`。
 
 ## 环境变量
 
@@ -109,7 +141,7 @@ yarn start
 vita-admin-starter/
 ├─ .env/                 # 环境变量（common / dev / prod）
 ├─ config/               # webpack 配置（common / dev / prod 三段 merge）
-├─ scripts/              # 页面脚手架生成器（crt:* 对应脚本与模板）
+├─ scripts/              # 页面脚手架生成器（crt:*）、图标裁剪（gen:icons / sync:menu-icons）
 ├─ public/               # 静态资源（config.js 含站点标题等运行时配置）
 └─ src/
    ├─ assets/            # 图片 / 字体 / lottie 等
