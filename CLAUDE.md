@@ -50,6 +50,16 @@
 
 - 同理，`usePermissions` / `PermissionsContent` 用 `@hsu-react/ui` 的；权限 context 由 `ConfigProvider` 提供，不要再自己挂一层 Provider。`RouteType` / `MetaType` 从组件库转出（`@/router/router.config` 仍可引），只有一处真源。
 
+## 构建（Vite）
+
+从 webpack 迁过来时有几处**只在运行时暴露、构建不报错**的坑，改构建配置前先看这里：
+
+- **标准装饰器 + `accessor`**（mobx 6 的 `@observable accessor x`，全项目 78 处）oxc 不降级，会原样输出，浏览器解析报 `Unexpected identifier`、整页白屏。`vite.config.ts` 里用 Babel 单独处理含这套语法的文件，别删。
+- **CSS Modules 的类名直通**由 `.env/.env.common` 的 `PASS_CLS` 驱动，`vite.config.ts` 的 `generateScopedName` 复刻了 webpack 那份 `getLocalIdent`。`.ant-*` 一旦被哈希，所有对 antd 的样式覆盖会静默失效。
+- **不要写按包名分组的 `manualChunks`**。实测首屏会从 2.88 MiB 涨到 8.14 MiB —— 按包名合并会跨越入口图与异步图的边界，把只有懒加载页面才用的 wangeditor / codemirror / xlsx 拽进首屏。rolldown 默认切分是对的。
+- `react-activation` 的 `KeepAlive` 用**具名导出**引入；它是 CJS，默认导出在 Vite 下会拿到整个命名空间对象。
+- 页面模块表用 `import.meta.glob`（原 `require.context`），key 要保持 `permit/user/index` 这个形状 —— 菜单表的 `url` 就是按它比对的。
+
 ## 纯页面内状态不要持久化
 
 面板折叠、视图切换（卡片/列表）、展开收起这类**只影响当前这一眼怎么看**的状态，用 `useState` 就够，**不要写进 localStorage**：
@@ -62,7 +72,7 @@
 
 ## 技术栈约定
 
-- React 18 + TypeScript + MobX + webpack 5 + **antd v6** + `@hsu-react/ui@^2`（2.x 是 antd v6 线；antd v5 请用 `@hsu-react/ui@1`，那条线在 [VitaTsui/hsu-ui](https://github.com/VitaTsui/hsu-ui)）
+- React 18 + TypeScript + MobX + **Vite 8**（原 webpack 5，已迁移）+ **antd v6** + `@hsu-react/ui@^2`（2.x 是 antd v6 线；antd v5 请用 `@hsu-react/ui@1`，那条线在 [VitaTsui/hsu-ui](https://github.com/VitaTsui/hsu-ui)）
 - 样式一律 scss（`.module.scss`），项目内零 less
 - 列表页 store 继承 `ListPanelStore`、表单 store 继承 `FormModalStore`（`src/stores/basisStoreClass/`）
 - 入口 `src/index.tsx` 引入组件库全局样式 `@hsu-react/ui/es/styles/antd-overload.scss`；项目特有的 antd 覆盖增量放本地 `src/styles/antd-overload.scss`（在其后引入），不要整份拷贝组件库样式
