@@ -57,50 +57,41 @@ function wrapRoutes(routes: RouteType[]): RouteType[] {
 }
 
 /**
- * Dynamically import all page components with webpack's require.context
- * This is a webpack-specific feature for importing modules in bulk
- */
-/**
- * Dynamically import page components with webpack's require.context.
+ * 批量拿到所有页面组件，做成「路径 -> 懒加载组件」的表。
  *
- * 第四个参数 "lazy" 是关键：默认的 "sync" 模式会把所有匹配到的模块拉进入口图，
- * 外面套的 lazy() 完全没有分割收益——整个 pages 目录、连同它从 @hsu-react/ui
- * 传递引入的富文本/表格/图表/PDF 都会进首屏。"lazy" 模式下 r(key) 返回 Promise，
- * 每个页面各自成 chunk，正是 RouterContainer 里 <Suspense> 已经准备好接的形态。
+ * `import.meta.glob` 默认就是懒加载（值是 `() => import(...)`），每个页面各自成 chunk
+ * ——这正是 RouterContainer 里 <Suspense> 已经准备好接的形态。换成 `eager: true` 会把
+ * 整个 pages 目录、连同它从 @hsu-react/ui 传递引入的富文本/表格/图表/PDF 一起拉进
+ * 首屏，代码分割就白做了。
  *
- * 正则只匹配页面入口（`<...>/index.tsx`）；下面的 filter 再排除页面私有目录与
- * 表单弹窗——它们不可能是菜单目标，且已能通过父页面的静态引用到达，匹配进来
- * 只会白白多出一堆 chunk。
+ * 从 webpack 的 require.context 迁过来时有两点必须对齐，否则菜单路由会全部匹配不上：
+ * 1. glob 只匹配页面入口（`<...>/index.tsx`），与原来的正则一致；
+ * 2. key 要去掉 `../pages/` 前缀与 `.tsx` 后缀并转小写，做成 `permit/user/index` 这种
+ *    形状 —— 菜单表里的 url 就是按这个形状比对的。
  */
-const pages = require.context("../pages/", true, /\/index\.tsx$/, "lazy");
+const pages = import.meta.glob<{ default: React.ComponentType }>(
+  "../pages/**/index.tsx"
+);
 
 /** 不可能作为菜单目标的路径段：页面私有目录与表单弹窗 */
 const isPrivateModulePath = (key: string) =>
   key.split(/[\\/]/).some((seg) => seg.startsWith("_") || /Form$/.test(seg));
 
-/**
- * Convert all page components into a lazy-loaded component map
- * @param r - webpack require.context object
- * @returns Map from component paths to lazy-loaded components
- */
-function importAll(r: __WebpackModuleApi.RequireContext) {
+function importAll(glob: Record<string, () => Promise<{ default: React.ComponentType }>>) {
   const modules: Record<
     string,
     React.LazyExoticComponent<React.ComponentType>
   > = {};
 
-  r.keys()
-    .filter((key) => !isPrivateModulePath(key))
-    .forEach((key) => {
+  Object.entries(glob)
+    .filter(([key]) => !isPrivateModulePath(key))
+    .forEach(([key, loader]) => {
       const normalizedKey = key
         .toLowerCase()
         .replace(/\.tsx$/, "")
-        .replace(/^\.\//, "");
+        .replace(/^\.\.\/pages\//, "");
 
-      // "lazy" 模式下 r(key) 本身就是模块命名空间的 Promise，正是 lazy() 想要的形状
-      modules[normalizedKey] = lazy(
-        () => r(key) as Promise<{ default: React.ComponentType }>
-      );
+      modules[normalizedKey] = lazy(loader);
     });
 
   return modules;

@@ -10,7 +10,10 @@ import PageLoading from "../PageLoading";
 import { RouteType } from "../../router.config";
 import { debounce } from "lodash";
 import useBackTop from "@/hooks/useBackTop";
-import KeepAlive from "react-activation";
+// 用具名导出而不是默认导出：react-activation 是 CJS，module.exports 上同时挂了
+// default 与 KeepAlive。webpack 的 interop 会取到 default，Vite 预打包后取到的是整个
+// 命名空间对象，渲染时报 "Element type is invalid ... got: object"。具名导出两边都对。
+import { KeepAlive } from "react-activation";
 import { useLocation, useNavigate } from "react-router";
 import { array_is_includes } from "hsu-utils";
 import { getAccessToken } from "@/utils/auth";
