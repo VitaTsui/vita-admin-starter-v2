@@ -1,6 +1,6 @@
 # Vita Admin Starter
 
-[![license](https://img.shields.io/github/license/VitaTsui/vita-admin-starter.svg)](./LICENSE)
+[![license](https://img.shields.io/github/license/VitaTsui/vita-admin-starter-v2.svg)](./LICENSE)
 
 一套开箱即用的**中后台管理脚手架**。
 UI 主要基于 [`@hsu-react/ui`](https://www.npmjs.com/package/@hsu-react/ui) 组件库构建，
@@ -138,7 +138,7 @@ yarn gen:icons                          # 裁进 collections.generated.json
 ## 目录结构
 
 ```
-vita-admin-starter/
+vita-admin-starter-v2/
 ├─ .env/                 # 环境变量（common / dev / prod）
 ├─ config/               # webpack 配置（common / dev / prod 三段 merge）
 ├─ scripts/              # 页面脚手架生成器（crt:*）、图标裁剪（gen:icons / sync:menu-icons）

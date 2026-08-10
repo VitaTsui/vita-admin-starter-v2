@@ -1,6 +1,7 @@
 // antd's Form is used only as a plain container here (hsu-ui's Form exposes
 // Modal/Drawer/Import/useForm, not a container); Button comes from hsu-ui
-import { Divider, Form, message, Segmented } from "antd";
+import { Divider, Form, Segmented } from "antd";
+import { message } from "@hsu-react/ui";
 import {
   DingtalkOutlined,
   LockOutlined,

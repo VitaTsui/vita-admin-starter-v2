@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { message, Modal, Spin, Tree } from "antd";
+import { Modal, Spin, Tree } from "antd";
+import { message } from "@hsu-react/ui";
 import type { DataNode } from "antd/es/tree";
 
 import {

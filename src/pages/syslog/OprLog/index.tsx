@@ -12,7 +12,7 @@ import ChatModal from "../_components/ChatModal";
 import ChatModalStore from "../_components/ChatModal/ChatModalStore";
 import { DeleteOutlined, RobotOutlined } from "@ant-design/icons";
 import OptionsStore, { Options } from "@/stores/OptionsStore";
-import { message } from "antd";
+import { message } from "@hsu-react/ui";
 
 const OprLog: React.FC = observer(() => {
   const {

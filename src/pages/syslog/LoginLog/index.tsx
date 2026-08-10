@@ -13,7 +13,7 @@ import ChatModal from "../_components/ChatModal";
 import ChatModalStore from "../_components/ChatModal/ChatModalStore";
 import styles from "./index.module.scss";
 import { DeleteOutlined, RobotOutlined } from "@ant-design/icons";
-import { message } from "antd";
+import { message } from "@hsu-react/ui";
 
 const LoginLog: React.FC = observer(() => {
   const {

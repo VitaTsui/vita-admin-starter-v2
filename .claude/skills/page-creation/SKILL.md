@@ -1600,7 +1600,7 @@ import { getYyyList } from "@/services/apis/<category>/yyy";
 |---|---|---|
 | **权限码对不上后端** | 抓前端所有 `hasPermi` 里的码，与后端下发的权限码全集做差集（本项目后端在哪个文件里维护这张表，第一次查时确认一次） | 前端用了后端不下发的码 → 按钮**永久隐藏**且没有任何报错。真捞到过一个（`work:outline:upd`），整页两个保存按钮不可见 |
 | **首屏体积** | `npm run build` 后数 `dist/index.html` 里的 `<script>` 个数与 gzip 总量 | 代码分割失效是静默的，只体现在体积上 |
-| **反向依赖** | `grep -rn 'from "@/pages/' src/layout src/components src/router src/stores src/hooks` | 共享层 import 页面私有目录 |
+| **反向依赖** | `grep -rn 'from "@/pages/' src/components src/router src/stores src/hooks` | 共享层 import 页面私有目录 |
 | **antd 误用** | `grep -rn 'from "antd"' src` 再比对兜底白名单 | 一眼能判 |
 | **MobX 两种模式混用** | `makeAutoObservable` 的文件列表 ∩ `extends (ListPanelStore\|FormModalStore)` 的文件列表 | 交集非空即运行时报错 |
 | **死代码** | 对每个模块 `grep -rl "<名字>" src \| grep -v 自身` 数引用 | 捞到过 941 行零引用的 store |

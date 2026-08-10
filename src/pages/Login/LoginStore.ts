@@ -16,7 +16,7 @@ import { getUUID } from "@/utils";
 import { makeAutoObservable } from "mobx";
 
 import RouterService from "@/router/RouterService";
-import { notification } from "antd";
+import { notification } from "@hsu-react/ui";
 import Cookies from "js-cookie";
 
 const dev = process.env.NODE_ENV === "development";
@@ -98,7 +98,7 @@ class LoginStore {
       fn?.();
     } else {
       notification.error({
-        message: res?.msg ?? "失败",
+        title: res?.msg ?? "失败",
       });
 
       this.checkIsNeedLoginCaptcha();
@@ -143,7 +143,7 @@ class LoginStore {
       fn?.();
     } else {
       notification.error({
-        message: res?.msg ?? "注册失败",
+        title: res?.msg ?? "注册失败",
       });
 
       this.checkIsNeedLoginCaptcha();
@@ -189,7 +189,7 @@ class LoginStore {
       fn?.();
     } else {
       notification.error({
-        message: res?.msg ?? "钉钉登录失败",
+        title: res?.msg ?? "钉钉登录失败",
       });
     }
   };
@@ -209,7 +209,7 @@ class LoginStore {
           fn?.();
         } else {
           notification.error({
-            message: res.msg,
+            title: res.msg,
           });
         }
       })
@@ -219,7 +219,7 @@ class LoginStore {
       // change goes through here too.
       .catch(() => {
         notification.warning({
-          message: "退出登录请求失败，已在本地清除登录状态",
+          title: "退出登录请求失败，已在本地清除登录状态",
         });
         fn?.();
       });

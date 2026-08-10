@@ -1,13 +1,13 @@
 {
-  "name": "vita-admin-starter",
+  "name": "vita-admin-starter-v2",
   "private": true,
   "version": "0.0.1",
   "description": "开箱即用的中后台管理脚手架：React 18 + TypeScript + MobX + webpack 5，UI 基于 @hsu-react/ui",
   "license": "MIT",
-  "homepage": "https://github.com/VitaTsui/vita-admin-starter#readme",
+  "homepage": "https://github.com/VitaTsui/vita-admin-starter-v2#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/VitaTsui/vita-admin-starter.git"
+    "url": "git+https://github.com/VitaTsui/vita-admin-starter-v2.git"
   },
   "type": "module",
   "scripts": {

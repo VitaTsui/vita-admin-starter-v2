@@ -1,6 +1,7 @@
 import { computed, makeObservable, observable } from "mobx";
 import { ResType, streamRequest } from "@/services/Axios";
-import { notification, UploadFile } from "antd";
+import { UploadFile } from "antd";
+import { notification } from "@hsu-react/ui";
 import { deepCopy, generateRandomStr, getTimeDifference } from "hsu-utils";
 import dayjs from "dayjs";
 import {
@@ -928,11 +929,11 @@ class ChatStore {
   protected _message = (res?: ResType) => {
     if (res?.code === 200) {
       notification.success({
-        message: res?.msg || "成功",
+        title: res?.msg || "成功",
       });
     } else {
       notification.error({
-        message: res?.msg || "失败",
+        title: res?.msg || "失败",
       });
     }
   };

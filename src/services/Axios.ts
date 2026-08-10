@@ -12,7 +12,7 @@ import axios, {
 import { Typeof, getFileNameFromHeader } from "hsu-utils";
 import { debounce } from "lodash";
 import { getAccessToken } from "@/utils/auth";
-import { notification } from "antd";
+import { notification } from "@hsu-react/ui";
 import wsCache from "@/utils/wsCache";
 
 /**
@@ -121,7 +121,7 @@ function safeRedirect(path: string): void {
 // Re-login
 const reLogin = debounce(() => {
   notification.error({
-    message: "登录已过期，请重新登录",
+    title: "登录已过期，请重新登录",
     duration: 0.5,
     onClose: () => {
       safeRedirect("/login");
@@ -133,7 +133,7 @@ const reLogin = debounce(() => {
 
 const errMsg = debounce((status: number, url: string, errorText: string) => {
   notification.error({
-    message: `请求错误 ${status}：${window.decodeURIComponent(url)}`,
+    title: `请求错误 ${status}：${window.decodeURIComponent(url)}`,
     description: errorText,
   });
 });
