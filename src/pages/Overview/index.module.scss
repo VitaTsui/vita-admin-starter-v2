@@ -67,11 +67,11 @@
 
   padding: 20px;
 
-  background: var(--cf-surface);
+  background: var(--vita-surface);
 
   // CF style: outlined white card; only the border color changes on hover
   border-radius: 8px;
-  border: 1px solid var(--cf-border);
+  border: 1px solid var(--vita-border);
   cursor: pointer;
 
   transition:
@@ -79,7 +79,7 @@
     box-shadow 0.18s;
 
   &:hover {
-    border-color: var(--primary-color);
+    border-color: var(--vita-primary);
 
     box-shadow: 0 1px 4px rgb(19 194 194 / 12%);
   }
@@ -102,7 +102,7 @@
     flex-direction: column;
 
     .statValue {
-      color: var(--cf-text);
+      color: var(--vita-foreground);
       font-size: 28px;
       font-weight: 600;
       line-height: 1.2;
@@ -111,7 +111,7 @@
     .statLabel {
       margin-top: 2px;
 
-      color: var(--cf-text-2);
+      color: var(--vita-muted-foreground);
       font-size: 14px;
     }
   }
@@ -122,7 +122,7 @@
   cursor: default;
 
   &:hover {
-    border-color: var(--cf-border);
+    border-color: var(--vita-border);
     box-shadow: none;
   }
 }
@@ -148,11 +148,11 @@
 
   padding: 20px;
 
-  background: var(--cf-surface);
+  background: var(--vita-surface);
 
   // CF style: outlined white card
   border-radius: 8px;
-  border: 1px solid var(--cf-border);
+  border: 1px solid var(--vita-border);
 
   .panelTitle {
     display: flex;
@@ -161,12 +161,12 @@
 
     margin-bottom: 16px;
 
-    color: var(--cf-text);
+    color: var(--vita-foreground);
     font-size: 16px;
     font-weight: 600;
 
     .more {
-      color: var(--primary-color);
+      color: var(--vita-primary);
       font-size: 13px;
       font-weight: 400;
 
@@ -194,9 +194,9 @@
 
   padding: 18px 8px;
 
-  background: var(--cf-subtle);
+  background: var(--vita-muted);
 
-  border: 1px solid var(--cf-border-weak);
+  border: 1px solid var(--vita-border-weak);
   border-radius: 8px;
   cursor: pointer;
 
@@ -210,12 +210,12 @@
   }
 
   .shortcutIcon {
-    color: var(--primary-color);
+    color: var(--vita-primary);
     font-size: 24px;
   }
 
   .shortcutLabel {
-    color: var(--cf-text);
+    color: var(--vita-foreground);
     font-size: 13px;
   }
 }
@@ -228,7 +228,7 @@
 .empty {
   padding: 32px 0;
 
-  color: var(--cf-text-3);
+  color: var(--vita-subtle-foreground);
   font-size: 14px;
   text-align: center;
 }
@@ -240,7 +240,7 @@
 
   padding: 12px 4px;
 
-  border-bottom: 1px solid var(--cf-border-weak);
+  border-bottom: 1px solid var(--vita-border-weak);
 
   &:last-child {
     border-bottom: none;
@@ -254,7 +254,7 @@
     width: 36px;
     height: 36px;
 
-    color: var(--primary-color);
+    color: var(--vita-primary);
     font-size: 18px;
 
     background: rgb(19 194 194 / 10%);
@@ -266,7 +266,7 @@
     min-width: 0;
 
     .recentName {
-      color: var(--cf-text);
+      color: var(--vita-foreground);
       font-size: 14px;
       font-weight: 500;
 
@@ -278,13 +278,13 @@
     .recentDesc {
       margin-top: 2px;
 
-      color: var(--cf-text-2);
+      color: var(--vita-muted-foreground);
       font-size: 12px;
     }
   }
 
   .recentTime {
-    color: var(--cf-text-3);
+    color: var(--vita-subtle-foreground);
     font-size: 12px;
     white-space: nowrap;
   }

@@ -4,8 +4,11 @@ import { Layout } from "antd";
 import { Outlet, useNavigate } from "react-router-dom";
 import React, { Suspense, lazy, useEffect, useState } from "react";
 
-import Header, { AccountAction } from "./layout/Header";
-import Menu, { MenuType } from "./layout/Menu";
+// 布局来自组件库。这几个组件此前是本项目的 src/layout/，2.0 起已收进 @hsu-react/ui，
+// 本项目不再自己维护一份。走子路径引入：它们依赖 react-router / react-intl，而这两个
+// 在组件库里是**可选** peerDependency，所以刻意没有从包根导出。
+import HsuLayout from "@hsu-react/ui/es/layout";
+import type { AccountAction, MenuType } from "@hsu-react/ui/es/layout";
 // 改密弹窗懒加载：App 在入口图里，而 PwdChange 会用到 hsu-ui 的 FormItem，
 // 而 FormItem 静态引入了全部字段渲染器（FormEditor→wangeditor、
 // FormCodeMirror→codemirror、FilePreview→pdfjs、Spreadsheet→xlsx）。
@@ -16,11 +19,9 @@ import { ADMIN_HOME } from "./router/router.config";
 import { clearAllCookie } from "./services/Axios";
 import { observer } from "mobx-react-lite";
 import wsCache from "./utils/wsCache";
-import NavTabBar from "./layout/NavTabBar";
 import LoginStore from "./pages/Login/LoginStore";
-import ThemeStore from "./layout/Theme/ThemeStore";
-import Theme from "./layout/Theme";
-import usePermissions from "@/hooks/usePermissions";
+import { getUserInfo } from "@/utils/auth";
+import { usePermissions } from "@hsu-react/ui";
 
 const { Sider, Content } = Layout;
 
@@ -28,7 +29,7 @@ const App: React.FC = observer(() => {
   const { logout } = LoginStore;
   const { router } = RouterService;
 
-  const { layout, headerTheme } = ThemeStore;
+  const { layout, headerTheme } = HsuLayout.ThemeStore;
 
   // Nav (header/sidebar) light/dark: light -> light, dark/theme-colored -> dark
   const navTheme: "light" | "dark" = headerTheme === "light" ? "light" : "dark";
@@ -79,14 +80,19 @@ const App: React.FC = observer(() => {
   ).filter((item) => checkPermission(item.hasPermi));
 
   return (
-    <Theme>
+    <HsuLayout.Theme>
       <Layout id="App" className={headerTheme}>
-        <Header
+        {/* 用户信息与站点标题原本由 Header 自己去读 @/utils/auth 与全局 Config，
+            组件收进库之后不再认识这两样，改由这里注入 */}
+        <HsuLayout.Header
           router={router}
           collapsed={collapsed}
           onToggleCollapsed={() => setCollapsed(!collapsed)}
           onChildItems={setChildrenItems}
           menu={menu}
+          user={getUserInfo()}
+          title={Config.title}
+          smallTitle={Config.smallTitle}
         />
         <Layout className="body">
           {/* Left sidebar menu */}
@@ -98,7 +104,7 @@ const App: React.FC = observer(() => {
               width={230}
               theme={navTheme}
             >
-              <Menu
+              <HsuLayout.Menu
                 router={router}
                 collapsed={collapsed}
                 theme={navTheme}
@@ -109,7 +115,7 @@ const App: React.FC = observer(() => {
 
           <Layout className="content">
             {/* Content tab bar */}
-            <NavTabBar
+            <HsuLayout.NavTabBar
               router={router}
               affixRouter={[ADMIN_HOME]}
               basePath={ADMIN_HOME}
@@ -133,7 +139,7 @@ const App: React.FC = observer(() => {
           />
         </Suspense>
       )}
-    </Theme>
+    </HsuLayout.Theme>
   );
 });
 

@@ -6,7 +6,7 @@ import "@hsu-react/ui/es/styles/antd-overload.scss";
 import "./styles/antd-overload.scss";
 
 import { BrowserRouter } from "react-router-dom";
-import Internationalization from "./layout/I18n";
+import HsuLayout from "@hsu-react/ui/es/layout";
 import ReactDOM from "react-dom/client";
 import Routes from "./router/Routes";
 
@@ -26,11 +26,9 @@ import iconCollections from "./assets/iconify/collections.generated.json";
   addCollection(collection);
 });
 
-// 这里从前挂着全局 ChakraProvider + CacheProvider，把 @chakra-ui/react + @emotion/*
-// + zag-js（约 570 KB）无条件带进首屏，而真正用到 chakra 的只有 Button.Chakra。
-// hsu-ui 0.0.23 起这两层已收进 ChakraButton 自带的 ChakraRoot，跟着它的异步 chunk 走，
-// 入口不再需要。若某个页面要直接使用 chakra 组件（不经 Button.Chakra），
-// 从 @hsu-react/ui 引 ChakraRoot 在那个页面自行包一层即可。
+// 这里从前挂着全局 ChakraProvider + CacheProvider（chakra + emotion + zag-js 约 570 KB
+// 无条件进首屏），只为了 Button.Chakra 那一个子组件。hsu-ui 2.0 起按钮改为自研、chakra
+// 整体移除，这一层连同依赖都不存在了。浅底描边这类样式用 <Button variant="surface" />。
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   // v7_startTransition：把路由状态更新包进 startTransition。
@@ -41,9 +39,9 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
   // chunk 到位。
   <BrowserRouter future={{ v7_startTransition: true }}>
     <SingleRouter showPath={false}>
-      <Internationalization>
+      <HsuLayout.I18n defaultLocale={Config.locale}>
         <Routes />
-      </Internationalization>
+      </HsuLayout.I18n>
     </SingleRouter>
   </BrowserRouter>,
 );

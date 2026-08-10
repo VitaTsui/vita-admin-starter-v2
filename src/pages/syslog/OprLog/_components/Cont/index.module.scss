@@ -12,12 +12,12 @@
 
     width: 100%;
 
-    border: 1px solid var(--cf-border);
+    border: 1px solid var(--vita-border);
 
     .item {
       display: flex;
 
-      border-bottom: 1px solid var(--cf-border);
+      border-bottom: 1px solid var(--vita-border);
 
       .fieldName,
       .fieldDesc,
@@ -45,7 +45,7 @@
       .fieldDesc,
       .fieldName,
       .oldValue {
-        border-right: 1px solid var(--cf-border);
+        border-right: 1px solid var(--vita-border);
       }
 
       &:last-child {
@@ -55,7 +55,7 @@
       &.header {
         font-weight: bold;
 
-        background-color: var(--cf-subtle);
+        background-color: var(--vita-muted);
       }
     }
   }

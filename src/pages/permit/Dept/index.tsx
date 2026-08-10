@@ -49,7 +49,11 @@ const Dept: React.FC = observer(() => {
     },
     {
       title: "同步钉钉组织",
-      colorPalette: "cyan",
+      // 原来写的是 colorPalette="cyan" —— 1.x 的 Button 根本没这个属性，它被透传到
+      // DOM 上，只换来一句 React 警告，颜色从未生效。antd v6 起用 color + variant，
+      // 且两者必须成对给（只给 color 时 antd 会忽略）
+      color: "cyan",
+      variant: "outlined",
       icon: <CloudSyncOutlined />,
       onClick: () => {
         setSyncOpen(true);

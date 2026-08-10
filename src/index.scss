@@ -111,7 +111,8 @@ canvas {
 hr {
   border: none;
 
-  background: rgba(230, 235, 233, 1);
+  // 原来写死一个浅灰，暗色下会变成一道亮线；走令牌就跟着明暗切换了
+  background: var(--vita-border);
 }
 
 ul,

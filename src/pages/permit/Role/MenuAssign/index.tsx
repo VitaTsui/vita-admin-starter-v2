@@ -23,7 +23,9 @@ const TOOLTIP_CONFIG = {
   arrow: false,
   placement: "top" as const,
   color: "#f2f4f5",
-  styles: { body: { color: "#131212", padding: "6px 16px" } },
+  // antd v6 把 Tooltip 的语义槽换成了 root / container / arrow，v5 的 body 已不存在
+  // （和 Popover 的 .ant-popover-inner -> .ant-popover-container 是同一批改动）
+  styles: { container: { color: "#131212", padding: "6px 16px" } },
 };
 
 /**

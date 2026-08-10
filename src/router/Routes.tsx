@@ -4,10 +4,13 @@ import RouterStore from "./RouterService";
 import { observer } from "mobx-react-lite";
 import { useRoutes } from "react-router";
 import { AliveScope } from "react-activation";
-import { ReloadContent } from "@/hooks/useReload";
-import { PermissionsContent } from "@/hooks/usePermissions";
-import { NavTabBarContent } from "@/hooks/useDropTab";
-import { NavTabBarTitleContent } from "@/hooks/useSetTabTitle";
+// 页签体系的三个 context 由组件库提供：NavTabBar 读的是库里的这几个，
+// 本项目此前那份同名副本已删除 —— 两边各挂各的 context，页签标题/刷新/关闭会静默失效
+import {
+  ReloadContent,
+  NavTabBarContent,
+  NavTabBarTitleContent,
+} from "@hsu-react/ui/es/layout";
 import { getAccessToken } from "@/utils/auth";
 import { ConfigProvider as HsuConfigProvider } from "@hsu-react/ui";
 import { get, post, del, put } from "@/services/Axios";
@@ -42,10 +45,6 @@ const Routes: React.FC = observer(() => {
     return { id, setId };
   }, [id, setId]);
 
-  const permissionsValue = useMemo(() => {
-    return { permissions };
-  }, [permissions]);
-
   const dropTabValue = useMemo(() => {
     return { dropKey, setDropKey };
   }, [dropKey, setDropKey]);
@@ -67,9 +66,9 @@ const Routes: React.FC = observer(() => {
       <ReloadContent.Provider value={value}>
         <NavTabBarContent.Provider value={dropTabValue}>
           <NavTabBarTitleContent.Provider value={tabTitleValue}>
-            <PermissionsContent.Provider value={permissionsValue}>
-              <AliveScope>{useRoutes(deferredRouter)}</AliveScope>
-            </PermissionsContent.Provider>
+            {/* 权限 context 由上面的 ConfigProvider 提供，本项目此前还自己挂了一份
+                同名副本，两份数据一样、但组件库的 hasPermi 只认库里那份，留着纯属重复 */}
+            <AliveScope>{useRoutes(deferredRouter)}</AliveScope>
           </NavTabBarTitleContent.Provider>
         </NavTabBarContent.Provider>
       </ReloadContent.Provider>

@@ -1,6 +1,6 @@
 import App from "@/App";
-import { ReactNode, lazy } from "react";
-import { Navigate, RouteObject } from "react-router-dom";
+import { lazy } from "react";
+import { Navigate } from "react-router-dom";
 
 // 登录页必须懒加载。它和 App 里的改密弹窗是入口图里仅有的两个 hsu-ui `FormItem`
 // 消费者，而 FormItem 静态引入了全部字段渲染器（wangeditor / codemirror / pdfjs /
@@ -11,42 +11,16 @@ const Login = lazy(() => import("@/pages/Login"));
 // Example: const FooDetail = lazy(() => import("@/pages/foo/Detail"));
 
 /**
- * MetaType route meta info
+ * 路由的附加信息与路由表类型。
  *
- * title: suffix title for the browser tab
- * name: menu name
- * menu: whether to show in the menu; dynamic routes are never shown in the menu
- * icon: menu icon
- * activeIcon: active menu icon
- * disabled: whether disabled
- * affix: whether pinned in the tab bar
- * noTagsView: whether hidden from the tab bar; if true, not shown in the tab bar but still shown in the menu
- * noCache: whether to skip caching, default true; always no caching when there are children
- * noLazy: whether not lazy-loaded, default false
- * noAuth: whether to skip permission checks, default false
- * hasPermi: whether restricted by permissions
- * secondary: 次级菜单根——进入它的子树后整个侧栏换成那些子页（来自菜单表的 cat=1）
+ * 这两个类型的**唯一定义**在 `@hsu-react/ui/es/layout` —— 菜单、面包屑、页签都按它取展示
+ * 信息，本项目此前自己维护一份逐字相同的副本，字段一旦不同步就是「配了不生效」这种
+ * 无声故障。这里只做转出，让项目里原有的 `@/router/router.config` 引用照常可用。
+ *
+ * 哪些字段由布局组件读、哪些只是搭车给应用自己用，见组件库文档的 Header 一节。
  */
-export type MetaType = {
-  title?: string;
-  name?: string;
-  menu?: boolean;
-  icon?: ReactNode;
-  activeIcon?: ReactNode;
-  disabled?: boolean;
-  affix?: boolean;
-  noTabsView?: boolean;
-  noCache?: boolean;
-  noLazy?: boolean;
-  noAuth?: boolean;
-  hasPermi?: string[];
-  secondary?: boolean;
-};
-
-export type RouteType = {
-  children?: RouteType[];
-  meta?: MetaType;
-} & RouteObject;
+export type { MetaType, RouteType } from "@hsu-react/ui/es/layout";
+import type { RouteType } from "@hsu-react/ui/es/layout";
 
 // Unified route prefix for the admin (back-office management) area
 export const ADMIN_BASE = "/admin";

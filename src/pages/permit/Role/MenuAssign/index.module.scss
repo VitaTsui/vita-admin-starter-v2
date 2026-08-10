@@ -9,7 +9,7 @@
       flex: 1;
       display: flex;
       flex-direction: column;
-      border: 1px solid var(--cf-border);
+      border: 1px solid var(--vita-border);
       border-radius: 4px;
       overflow: hidden;
 
@@ -20,8 +20,8 @@
         font-size: 16px;
         line-height: 16px;
         font-weight: 500;
-        border-bottom: 1px solid var(--cf-border);
-        background-color: var(--cf-subtle);
+        border-bottom: 1px solid var(--vita-border);
+        background-color: var(--vita-muted);
         display: flex;
         align-items: center;
         gap: 8px;
@@ -34,14 +34,14 @@
           margin-left: auto;
           font-size: 12px;
           font-weight: 400;
-          color: var(--cf-text-2);
+          color: var(--vita-muted-foreground);
           white-space: nowrap;
         }
 
         .menuPath {
           font-size: 13px;
           font-weight: 400;
-          color: var(--cf-text-2);
+          color: var(--vita-muted-foreground);
         }
 
         .selectAllCheckbox {
@@ -75,21 +75,21 @@
         }
 
         .grantAll {
-          color: var(--cf-success);
-          background: color-mix(in srgb, var(--cf-success) 8%, transparent);
-          border: 1px solid color-mix(in srgb, var(--cf-success) 35%, transparent);
+          color: var(--vita-success);
+          background: color-mix(in srgb, var(--vita-success) 8%, transparent);
+          border: 1px solid color-mix(in srgb, var(--vita-success) 35%, transparent);
         }
 
         .grantPartial {
-          color: var(--cf-warning);
-          background: color-mix(in srgb, var(--cf-warning) 8%, transparent);
-          border: 1px solid color-mix(in srgb, var(--cf-warning) 35%, transparent);
+          color: var(--vita-warning);
+          background: color-mix(in srgb, var(--vita-warning) 8%, transparent);
+          border: 1px solid color-mix(in srgb, var(--vita-warning) 35%, transparent);
         }
 
         .grantNone {
-          color: var(--cf-text-2);
-          background: var(--cf-subtle);
-          border: 1px solid var(--cf-border);
+          color: var(--vita-muted-foreground);
+          background: var(--vita-muted);
+          border: 1px solid var(--vita-border);
         }
       }
 
@@ -106,7 +106,7 @@
         align-items: center;
         justify-content: center;
         gap: 12px;
-        color: var(--cf-text-2);
+        color: var(--vita-muted-foreground);
         font-size: 14px;
       }
     }
