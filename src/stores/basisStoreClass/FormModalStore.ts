@@ -45,14 +45,14 @@ class FormModalStore<F = Record<string, unknown>> {
    */
   public getFormData = (id: number | string, data?: Partial<F>) => {
     const seq = ++this._formSeq;
-    setTimeout(() => {
-      // Bail out if the form was reset or reopened during the delay,
+    queueMicrotask(() => {
+      // Bail out if the form was reset or reopened before the microtask ran,
       // otherwise the old callback would overwrite the current form.
       if (seq !== this._formSeq) {
         return;
       }
       this._getFormData(id, data);
-    }, 500);
+    });
   };
   protected _getFormData = (_id: number | string, _data?: Partial<F>) => {
     // Concrete fetch logic is implemented by subclasses

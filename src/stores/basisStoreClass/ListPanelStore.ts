@@ -123,9 +123,9 @@ export default class ListPanelStore<
       this._query.toOArr([this._order]);
     }
 
-    setTimeout(() => {
+    queueMicrotask(() => {
       this.setSearchData(this._initSearchData);
-    }, 500);
+    });
   };
 
   /**

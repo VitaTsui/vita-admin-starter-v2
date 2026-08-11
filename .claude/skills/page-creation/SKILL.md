@@ -533,7 +533,7 @@ export default new XxxFormStore();
 ```
 
 要点：
-- 详情方法**必须**用 `_getFormData`（protected 覆写），不要自己另开 `getFormData`——基类 `getFormData` 做了 `setTimeout(500)` 防抖。
+- 详情方法**必须**用 `_getFormData`（protected 覆写），不要自己另开 `getFormData`——基类 `getFormData` 用 `queueMicrotask` 延后一个微任务，并配合 `_formSeq` 作废被 `resetFormData` 取消的请求。
 - `addFormData`/`editFormData` 成功后调用传入的 `fn?.(res)`，再 `_message(res)`。
 - 编辑提交前把 `id` 合并到 `data` 里（`data.id = id`）再 POST，和后端约定一致。
 
