@@ -26,7 +26,7 @@
   "dependencies": {
     "@ant-design/icons": "^6.3.2",
     "@hsu-react/single-router": "^0.0.28",
-    "@hsu-react/ui": "^2.2.6",
+    "@hsu-react/ui": "^2.2.13",
     "@iconify/react": "^5.0.1",
     "@microsoft/fetch-event-source": "^2.0.1",
     "@noble/ciphers": "^1.3.0",
