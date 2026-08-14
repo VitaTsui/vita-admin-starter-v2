@@ -56,16 +56,16 @@ import { Button, Tag, Switch, message } from "antd";
 ## 环境要求
 
 - Node.js 20+
-- 包管理器：yarn（推荐）
+- 包管理器：pnpm（由 package.json 的 `packageManager` 字段钉住版本，corepack 会自动取对）
 
 ## 快速开始
 
 ```bash
 # 1. 安装依赖
-yarn
+pnpm install
 
 # 2. 启动开发服务器
-yarn start
+pnpm start
 ```
 
 默认监听 **3003** 端口（被占用时由 portfinder 自动顺延，终端会打印实际地址）。
@@ -75,16 +75,16 @@ yarn start
 
 | 命令 | 说明 |
 | --- | --- |
-| `yarn start` | 启动开发服务器（webpack-dev-server，HMR） |
-| `yarn build` | 生产构建（输出到 `dist/`） |
-| `yarn lint` | ESLint 检查（`--max-warnings 0`） |
-| `yarn gen:icons` | 生成精简图标集（`start` / `build` 已前置，一般不用手动跑） |
-| `yarn sync:menu-icons <菜单JSON>` | 把后端菜单里配置的图标固化成构建输入 |
-| `yarn crt:lp` | 生成列表页面（List Panel） |
-| `yarn crt:fp` | 生成表单页面（Form Panel） |
-| `yarn crt:lfp` | 生成「列表 + 表单」页面 |
-| `yarn crt:lmp` | 生成「列表内嵌弹窗子列表」页面 |
-| `yarn crt:dp` | 生成静态 / 内容页面（Default Panel） |
+| `pnpm start` | 启动开发服务器（webpack-dev-server，HMR） |
+| `pnpm build` | 生产构建（输出到 `dist/`） |
+| `pnpm lint` | ESLint 检查（`--max-warnings 0`） |
+| `pnpm gen:icons` | 生成精简图标集（`start` / `build` 已前置，一般不用手动跑） |
+| `pnpm sync:menu-icons <菜单JSON>` | 把后端菜单里配置的图标固化成构建输入 |
+| `pnpm crt:lp` | 生成列表页面（List Panel） |
+| `pnpm crt:fp` | 生成表单页面（Form Panel） |
+| `pnpm crt:lfp` | 生成「列表 + 表单」页面 |
+| `pnpm crt:lmp` | 生成「列表内嵌弹窗子列表」页面 |
+| `pnpm crt:dp` | 生成静态 / 内容页面（Default Panel） |
 
 > `crt:*` 为页面脚手架，脚本在 `scripts/`，对应模板在 `scripts/{ListPanel,FormPanel,...}`。
 > 这是本框架快速产出新页面的核心利器，强烈建议先熟悉。
@@ -104,8 +104,8 @@ yarn start
 
 ```bash
 # 菜单 JSON 可以是 getMenuList 的响应，或后台导出的菜单配置
-yarn sync:menu-icons ./tmp/menu.json   # 更新 scripts/extraIcons.cjs
-yarn gen:icons                          # 裁进 collections.generated.json
+pnpm sync:menu-icons ./tmp/menu.json   # 更新 scripts/extraIcons.cjs
+pnpm gen:icons                          # 裁进 collections.generated.json
 ```
 
 `scripts/extraIcons.cjs` 与 `src/assets/iconify/collections.generated.json` 都是**生成物，但需要提交进仓库**，避免 CI 上没跑脚本导致编译失败；`start` / `build` 前置的 `gen:icons` 保证它不过期。
